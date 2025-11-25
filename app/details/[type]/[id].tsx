@@ -1,0 +1,615 @@
+import { Ionicons } from '@expo/vector-icons';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StreamingOptions } from '../../../components/StreamingOptions';
+import { Colors } from '../../../constants/Colors';
+import { progressService } from '../../../services/progress';
+import { storageService } from '../../../services/storage';
+
+import { tmdbService } from '../../../services/tmdb';
+import { Movie, ShowProgress, StreamingOption, TVShow, TVShowDetails } from '../../../types';
+
+const { width } = Dimensions.get('window');
+
+export default function DetailsScreen() {
+  const { type, id } = useLocalSearchParams<{ type: string; id: string }>();
+  const [item, setItem] = useState<Movie | TVShow | TVShowDetails | null>(null);
+  const [streamingOptions, setStreamingOptions] = useState<StreamingOption[]>([]);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [showProgress, setShowProgress] = useState<ShowProgress | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    const loadDetails = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const itemId = parseInt(id as string);
+
+        let details;
+        if (type === 'movie') {
+          details = await tmdbService.getMovieDetails(itemId);
+        } else {
+          details = await tmdbService.getTVShowDetails(itemId);
+        }
+
+        setItem(details);
+
+        // Load streaming options
+        const options = await tmdbService.getWatchProviders(itemId, type as 'movie' | 'tv');
+        setStreamingOptions(options);
+      } catch (error) {
+        console.error('Error loading details:', error);
+        setError('Failed to load details. Please check your internet connection and try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const checkWatchlistStatus = async () => {
+      try {
+        const inWatchlist = await storageService.isInWatchlist(
+          parseInt(id as string),
+          type as 'movie' | 'tv'
+        );
+        setIsInWatchlist(inWatchlist);
+      } catch (error) {
+        console.error('Error checking watchlist status:', error);
+      }
+    };
+
+    const loadShowProgress = async () => {
+      if (type === 'tv') {
+        try {
+          const progress = await progressService.getShowProgress(parseInt(id as string));
+          setShowProgress(progress);
+        } catch (error) {
+          console.error('Error loading show progress:', error);
+        }
+      }
+    };
+
+    if (type && id) {
+      loadDetails();
+      checkWatchlistStatus();
+      loadShowProgress();
+    }
+  }, [type, id]);
+
+  const handleWatchlistPress = async () => {
+    if (!item) return;
+
+    try {
+      const itemId = parseInt(id as string);
+      const itemType = type as 'movie' | 'tv';
+      const title = 'title' in item ? item.title : item.name;
+      const releaseDate = 'title' in item ? item.release_date : item.first_air_date;
+
+      if (isInWatchlist) {
+        await storageService.removeFromWatchlist(itemId, itemType);
+        setIsInWatchlist(false);
+      } else {
+        await storageService.addToWatchlist({
+          id: itemId,
+          type: itemType,
+          title,
+          poster_path: item.poster_path,
+          release_date: itemType === 'movie' ? releaseDate : undefined,
+          first_air_date: itemType === 'tv' ? releaseDate : undefined,
+          vote_average: item.vote_average,
+        });
+        setIsInWatchlist(true);
+      }
+    } catch (error) {
+      console.error('Error updating watchlist:', error);
+    }
+  };
+
+  const handleStartWatching = async () => {
+    if (!item || type !== 'tv') return;
+
+    try {
+      const itemId = parseInt(id as string);
+      // Mark the first episode of the first season as watched to start tracking
+      await progressService.markEpisodeWatched(itemId, 1, 1);
+
+      // Reload progress to update the UI
+      const progress = await progressService.getShowProgress(itemId);
+      setShowProgress(progress);
+
+      // Navigate to the first season
+      router.push(`/season/${itemId}/1`);
+    } catch (error) {
+      console.error('Error starting to watch:', error);
+    }
+  };
+
+  const handleContinueWatching = () => {
+    if (!showProgress) return;
+    router.push(`/season/${showProgress.show_id}/${showProgress.current_season}`);
+  };
+
+  const onRefresh = async () => {
+    if (!type || !id) return;
+
+    setIsRefreshing(true);
+    try {
+      const itemId = parseInt(id as string);
+
+      // Reload details
+      let details;
+      if (type === 'movie') {
+        details = await tmdbService.getMovieDetails(itemId);
+      } else {
+        details = await tmdbService.getTVShowDetails(itemId);
+      }
+      setItem(details);
+
+      // Reload streaming options
+      const options = await tmdbService.getWatchProviders(itemId, type as 'movie' | 'tv');
+      setStreamingOptions(options);
+
+      // Reload watchlist status
+      const inWatchlist = await storageService.isInWatchlist(itemId, type as 'movie' | 'tv');
+      setIsInWatchlist(inWatchlist);
+
+      // Reload show progress if TV show
+      if (type === 'tv') {
+        const progress = await progressService.getShowProgress(itemId);
+        setShowProgress(progress);
+      }
+    } catch (error) {
+      console.error('Error refreshing details:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading details...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => {
+            if (type && id) {
+              const loadDetails = async () => {
+                try {
+                  setLoading(true);
+                  setError(null);
+                  const itemId = parseInt(id as string);
+
+                  let details;
+                  if (type === 'movie') {
+                    details = await tmdbService.getMovieDetails(itemId);
+                  } else {
+                    details = await tmdbService.getTVShowDetails(itemId);
+                  }
+
+                  setItem(details);
+
+                  const options = await tmdbService.getWatchProviders(itemId, type as 'movie' | 'tv');
+                  setStreamingOptions(options);
+                } catch (error) {
+                  console.error('Error loading details:', error);
+                  setError('Failed to load details. Please check your internet connection and try again.');
+                } finally {
+                  setLoading(false);
+                }
+              };
+              loadDetails();
+            }
+          }}
+        >
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!item) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>Content not found</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.retryButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const title = 'title' in item ? item.title : item.name;
+  const releaseDate = 'title' in item ? item.release_date : item.first_air_date;
+  const year = releaseDate ? new Date(releaseDate).getFullYear() : '';
+  const backdropUrl = tmdbService.getImageURL(item.backdrop_path, 'w1280');
+  const posterUrl = tmdbService.getImageURL(item.poster_path, 'w500');
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: title,
+          headerBackTitle: 'Back',
+        }}
+      />
+
+      <ScrollView style={styles.scrollView}>
+        {backdropUrl && (
+          <Image source={{ uri: backdropUrl }} style={styles.backdrop} />
+        )}
+
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.posterContainer}>
+              {posterUrl ? (
+                <Image source={{ uri: posterUrl }} style={styles.poster} />
+              ) : (
+                <View style={styles.placeholderPoster}>
+                  <Ionicons name="image-outline" size={40} color={Colors.textMuted} />
+                </View>
+              )}
+            </View>
+
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>{title}</Text>
+              <Text style={styles.year}>{year}</Text>
+
+              <View style={styles.ratingContainer}>
+                <Ionicons name="star" size={16} color={Colors.primary} />
+                <Text style={styles.rating}>
+                  {item.vote_average.toFixed(1)} ({item.vote_count} votes)
+                </Text>
+              </View>
+
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.watchlistButton, isInWatchlist && styles.watchlistButtonActive]}
+                  onPress={handleWatchlistPress}
+                >
+                  <Ionicons
+                    name={isInWatchlist ? "bookmark" : "bookmark-outline"}
+                    size={20}
+                    color={Colors.text}
+                  />
+                  <Text style={styles.watchlistButtonText}>
+                    {isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+                  </Text>
+                </TouchableOpacity>
+
+                {type === 'tv' && !showProgress && (
+                  <TouchableOpacity
+                    style={styles.startWatchingButton}
+                    onPress={handleStartWatching}
+                  >
+                    <Ionicons name="play" size={20} color={Colors.text} />
+                    <Text style={styles.startWatchingButtonText}>Start Watching</Text>
+                  </TouchableOpacity>
+                )}
+
+                {type === 'tv' && showProgress && (
+                  <TouchableOpacity
+                    style={styles.continueWatchingButton}
+                    onPress={handleContinueWatching}
+                  >
+                    <Ionicons name="play" size={20} color={Colors.text} />
+                    <Text style={styles.continueWatchingButtonText}>
+                      Continue S{showProgress.current_season}E{showProgress.current_episode}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.overview}>
+            <Text style={styles.overviewTitle}>Overview</Text>
+            <Text style={styles.overviewText}>{item.overview}</Text>
+          </View>
+
+          <StreamingOptions options={streamingOptions} />
+
+          {type === 'tv' && item && 'seasons' in item && (
+            <View style={styles.seasonsSection}>
+              <Text style={styles.seasonsTitle}>Seasons</Text>
+              {showProgress && (
+                <View style={styles.progressInfo}>
+                  <Text style={styles.progressText}>
+                    Currently watching: Season {showProgress.current_season}, Episode {showProgress.current_episode}
+                  </Text>
+                  <Text style={styles.progressText}>
+                    Total watched episodes: {showProgress.total_watched_episodes}
+                  </Text>
+                </View>
+              )}
+              {(item as TVShowDetails).seasons
+                .filter(season => season.season_number > 0) // Filter out specials
+                .map((season) => (
+                  <TouchableOpacity
+                    key={season.id}
+                    style={styles.seasonCard}
+                    onPress={() => router.push(`/season/${id}/${season.season_number}`)}
+                  >
+                    <View style={styles.seasonImageContainer}>
+                      {season.poster_path ? (
+                        <Image
+                          source={{ uri: tmdbService.getImageURL(season.poster_path, 'w300') || '' }}
+                          style={styles.seasonImage}
+                        />
+                      ) : (
+                        <View style={styles.placeholderSeasonImage}>
+                          <Ionicons name="tv-outline" size={32} color={Colors.textMuted} />
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.seasonInfo}>
+                      <Text style={styles.seasonTitle}>{season.name}</Text>
+                      <Text style={styles.seasonEpisodeCount}>
+                        {season.episode_count} episodes
+                      </Text>
+                      {season.air_date && (
+                        <Text style={styles.seasonAirDate}>
+                          {new Date(season.air_date).getFullYear()}
+                        </Text>
+                      )}
+                      {season.overview && (
+                        <Text style={styles.seasonOverview} numberOfLines={2}>
+                          {season.overview}
+                        </Text>
+                      )}
+                    </View>
+
+                    <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    paddingHorizontal: 32,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginTop: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 24,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: Colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  backdrop: {
+    width: width,
+    height: width * 0.56,
+    backgroundColor: Colors.surface,
+  },
+  content: {
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    marginTop: -60,
+    marginBottom: 24,
+  },
+  posterContainer: {
+    marginRight: 16,
+  },
+  poster: {
+    width: 120,
+    height: 180,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  placeholderPoster: {
+    width: 120,
+    height: 180,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  titleContainer: {
+    flex: 1,
+    paddingTop: 60,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  year: {
+    fontSize: 16,
+    color: Colors.textMuted,
+    marginBottom: 8,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  rating: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginLeft: 4,
+  },
+  watchlistButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  watchlistButtonActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  watchlistButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginLeft: 8,
+  },
+  buttonContainer: {
+    gap: 12,
+  },
+  startWatchingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  startWatchingButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginLeft: 8,
+  },
+  continueWatchingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.success,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  continueWatchingButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginLeft: 8,
+  },
+  overview: {
+    marginBottom: 24,
+  },
+  overviewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  overviewText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: Colors.textSecondary,
+  },
+  seasonsSection: {
+    marginTop: 24,
+  },
+  seasonsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 16,
+  },
+  progressInfo: {
+    backgroundColor: Colors.surface,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  progressText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  seasonCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  seasonImageContainer: {
+    marginRight: 12,
+  },
+  seasonImage: {
+    width: 60,
+    height: 90,
+    borderRadius: 6,
+    backgroundColor: Colors.card,
+  },
+  placeholderSeasonImage: {
+    width: 60,
+    height: 90,
+    borderRadius: 6,
+    backgroundColor: Colors.card,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  seasonInfo: {
+    flex: 1,
+  },
+  seasonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  seasonEpisodeCount: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    marginBottom: 2,
+  },
+  seasonAirDate: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    marginBottom: 4,
+  },
+  seasonOverview: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+});
