@@ -1,8 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Logo } from '../../components/Logo';
@@ -316,9 +315,6 @@ export default function HomeScreen() {
 
         <View style={styles.headerContent}>
           <Logo />
-          <TouchableOpacity onPress={() => router.push('/search')}>
-            <SymbolView name="magnifyingglass" size={24} tintColor={iconColor} />
-          </TouchableOpacity>
         </View>
       </Animated.View>
     </View>

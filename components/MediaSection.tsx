@@ -28,6 +28,7 @@ export const MediaSection: React.FC<MediaSectionProps> = ({
       onPress={() => onItemPress(item)}
       onWatchlistPress={() => onWatchlistPress(item)}
       isInWatchlist={isInWatchlist(item.id)}
+      style={styles.card}
     />
   );
 
@@ -59,5 +60,9 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingHorizontal: 16,
+  },
+  card: {
+    width: 140,
+    marginRight: 12,
   },
 });

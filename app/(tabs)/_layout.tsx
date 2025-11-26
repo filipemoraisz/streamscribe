@@ -28,6 +28,14 @@ export default function TabLayout() {
         <Label>Profile</Label>
         <Icon sf="person.crop.circle" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="search" role="search">
+        <Label>Search</Label>
+        <Icon sf="magnifyingglass" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="optimizer">
+        <Label>Calendar</Label>
+        <Icon sf="calendar" />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

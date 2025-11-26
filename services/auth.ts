@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, UserPreferences } from '../types';
 import { supabase } from './supabase';
 
 class AuthService {
@@ -79,8 +79,6 @@ class AuthService {
         return null;
       }
 
-      // Optionally fetch profile if you need more data than what's in metadata
-      // For now, metadata is sufficient as we store full_name there
       return {
         id: session.user.id,
         email: session.user.email || '',
@@ -108,14 +106,54 @@ class AuthService {
         return { success: false, message: error.message };
       }
 
-      // Also update the profiles table if you have specific columns there
-      // The trigger handles insert, but updates might need manual handling
-      // or another trigger. For now, updating auth metadata is good.
-
       return { success: true, message: 'Profile updated successfully' };
     } catch (error) {
       console.error('Update user error:', error);
       return { success: false, message: 'Failed to update profile' };
+    }
+  }
+
+  async getUserPreferences(userId: string): Promise<UserPreferences | null> {
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        // It's common to not have preferences yet, so just warn or ignore
+        return null;
+      }
+
+      return data as UserPreferences;
+    } catch (error) {
+      console.error('Get preferences error:', error);
+      return null;
+    }
+  }
+
+  async saveUserPreferences(preferences: Partial<UserPreferences>): Promise<{ success: boolean; message: string }> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { success: false, message: 'User not authenticated' };
+
+      const { error } = await supabase
+        .from('user_preferences')
+        .upsert({
+          user_id: user.id,
+          ...preferences,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        return { success: false, message: error.message };
+      }
+
+      return { success: true, message: 'Preferences saved successfully' };
+    } catch (error) {
+      console.error('Save preferences error:', error);
+      return { success: false, message: 'Failed to save preferences' };
     }
   }
 }

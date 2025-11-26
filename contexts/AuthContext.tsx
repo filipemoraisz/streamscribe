@@ -1,14 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService } from '../services/auth';
-import { User } from '../types';
+import { User, UserPreferences } from '../types';
 
 interface AuthContextType {
   user: User | null;
+  preferences: UserPreferences | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<{ success: boolean; message: string }>;
+  refreshPreferences: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +40,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
+      if (currentUser) {
+        const prefs = await authService.getUserPreferences(currentUser.id);
+        setPreferences(prefs);
+      }
     } catch (error) {
       console.error('Error checking auth state:', error);
     } finally {
@@ -48,6 +55,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const result = await authService.login(email, password);
     if (result.success && result.user) {
       setUser(result.user);
+      const prefs = await authService.getUserPreferences(result.user.id);
+      setPreferences(prefs);
     }
     return { success: result.success, message: result.message };
   };
@@ -56,6 +65,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const result = await authService.register(email, password, name);
     if (result.success && result.user) {
       setUser(result.user);
+      // New users won't have preferences yet
+      setPreferences(null);
     }
     return { success: result.success, message: result.message };
   };
@@ -63,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     await authService.logout();
     setUser(null);
+    setPreferences(null);
   };
 
   const updateUser = async (userData: Partial<User>) => {
@@ -74,13 +86,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return result;
   };
 
+  const refreshPreferences = async () => {
+    if (user) {
+      const prefs = await authService.getUserPreferences(user.id);
+      setPreferences(prefs);
+    }
+  };
+
   const value: AuthContextType = {
     user,
+    preferences,
     loading,
     login,
     register,
     logout,
     updateUser,
+    refreshPreferences,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

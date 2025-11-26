@@ -164,3 +164,21 @@ export interface ShowProgress {
   last_watched_date: string;
   status: 'watching' | 'completed' | 'dropped' | 'plan_to_watch';
 }
+
+export interface UserPreferences {
+  user_id: string;
+  subscribed_services: string[];
+  weekly_watch_hours: number;
+  monthly_budget: number;
+  updated_at: string;
+  onboarding_completed?: boolean; // Optional flag
+}
+
+export interface UserImpactStats {
+  user_id: string;
+  total_savings: number;
+  optimized_hours: number;
+  current_streak: number;
+  monthly_efficiency: number;
+  last_updated: string;
+}

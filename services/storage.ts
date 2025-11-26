@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WatchlistItem } from '../types';
 import { supabase } from './supabase';
+import { tmdbService } from './tmdb';
 
 class StorageService {
   private async getUserId(): Promise<string | null> {
@@ -17,26 +18,54 @@ class StorageService {
     try {
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
-      const localWatchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
+      let localWatchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
 
       const userId = await this.getUserId();
       if (userId) {
-        // If logged in, try to fetch from Supabase and merge
-        // In a real app, you'd want more sophisticated sync logic (e.g., last modified)
-        // For now, we'll just fetch from Supabase and update local if successful
+        // Fetch from Supabase
         const { data: cloudWatchlist, error } = await supabase
           .from('watchlists')
           .select('*')
           .eq('user_id', userId);
 
         if (!error && cloudWatchlist) {
-          // Merge logic here if needed, or just return cloud data
-          // For simplicity, let's map cloud data to WatchlistItem format
-          // Note: You'd need to fetch full details from TMDB if not stored
-          // But since we only store IDs in Supabase, we might need a hybrid approach
-          // For this step, let's assume we just return local for speed, 
-          // but trigger a background sync
-          this.syncWatchlist(localWatchlist);
+          const localIds = new Set(localWatchlist.map(i => `${i.type}-${i.id}`));
+          const missingItems = cloudWatchlist.filter(c => !localIds.has(`${c.media_type}-${c.tmdb_id}`));
+
+          if (missingItems.length > 0) {
+            // Fetch details for missing items
+            const newItems: WatchlistItem[] = [];
+            for (const item of missingItems) {
+              try {
+                let details;
+                if (item.media_type === 'movie') {
+                  details = await tmdbService.getMovieDetails(item.tmdb_id);
+                } else {
+                  details = await tmdbService.getTVShowDetails(item.tmdb_id);
+                }
+
+                if (details) {
+                  newItems.push({
+                    id: item.tmdb_id,
+                    type: item.media_type as 'movie' | 'tv',
+                    title: item.media_type === 'movie' ? (details as any).title : (details as any).name,
+                    poster_path: details.poster_path,
+                    release_date: item.media_type === 'movie' ? (details as any).release_date : (details as any).first_air_date,
+                    vote_average: details.vote_average,
+                    added_date: item.created_at,
+                    watched: item.status === 'completed',
+                  });
+                }
+              } catch (err) {
+                console.error(`Error fetching details for ${item.media_type} ${item.tmdb_id}:`, err);
+              }
+            }
+
+            if (newItems.length > 0) {
+              localWatchlist = [...localWatchlist, ...newItems];
+              await AsyncStorage.setItem(key, JSON.stringify(localWatchlist));
+            }
+          }
         }
       }
 
@@ -158,18 +187,10 @@ class StorageService {
         watchlist[index] = updatedItem;
         const key = await this.getWatchlistKey();
         await AsyncStorage.setItem(key, JSON.stringify(watchlist));
-        // Note: We don't sync providerCache to 'watchlists' table, 
-        // that goes to 'media_cache' in recommendations service
       }
     } catch (error) {
       console.error('Error updating watchlist item:', error);
     }
-  }
-
-  private async syncWatchlist(localWatchlist: WatchlistItem[]) {
-    // Placeholder for more complex sync logic
-    // For now, we assume local is source of truth for immediate UI
-    // In a real app, you'd fetch from Supabase, compare timestamps, and merge
   }
 }
 

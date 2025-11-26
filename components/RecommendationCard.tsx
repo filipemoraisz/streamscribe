@@ -37,20 +37,20 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.header}>
         <View style={styles.rankContainer}>
-          <Ionicons 
-            name={getRankIcon(rank)} 
-            size={24} 
-            color={getRankColor(rank)} 
+          <Ionicons
+            name={getRankIcon(rank)}
+            size={24}
+            color={getRankColor(rank)}
           />
           <Text style={[styles.rankText, { color: getRankColor(rank) }]}>
             #{rank}
           </Text>
         </View>
-        
+
         <View style={styles.providerInfo}>
           {recommendation.logoUrl ? (
-            <Image 
-              source={{ uri: recommendation.logoUrl }} 
+            <Image
+              source={{ uri: recommendation.logoUrl }}
               style={styles.providerLogo}
               resizeMode="contain"
             />
@@ -63,7 +63,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
           )}
           <Text style={styles.providerName}>{recommendation.providerName}</Text>
         </View>
-        
+
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreLabel}>Value Score</Text>
           <Text style={styles.scoreValue}>
@@ -80,14 +80,14 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
               {recommendation.totalItems} items
             </Text>
           </View>
-          
+
           <View style={styles.stat}>
             <Ionicons name="film" size={16} color={Colors.primary} />
             <Text style={styles.statText}>
               {recommendation.availableContent.movies.length} movies
             </Text>
           </View>
-          
+
           <View style={styles.stat}>
             <Ionicons name="tv" size={16} color={Colors.primary} />
             <Text style={styles.statText}>
@@ -104,6 +104,35 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
             </Text>
           </View>
         )}
+
+        <View style={styles.badgesRow}>
+          {recommendation.affinityScore > 0 && (
+            <View style={[styles.badge, { backgroundColor: Colors.primary + '20' }]}>
+              <Ionicons name="heart" size={12} color={Colors.primary} />
+              <Text style={[styles.badgeText, { color: Colors.primary }]}>
+                {Math.round(recommendation.affinityScore)}% Match
+              </Text>
+            </View>
+          )}
+
+          {recommendation.efficiencyRatio > 2 && (
+            <View style={[styles.badge, { backgroundColor: Colors.warning + '20' }]}>
+              <Ionicons name="flash" size={12} color={Colors.warning} />
+              <Text style={[styles.badgeText, { color: Colors.warning }]}>
+                High Value
+              </Text>
+            </View>
+          )}
+
+          {recommendation.estimatedCompletionMonths > 0 && (
+            <View style={[styles.badge, { backgroundColor: Colors.textMuted + '20' }]}>
+              <Ionicons name="time" size={12} color={Colors.textSecondary} />
+              <Text style={[styles.badgeText, { color: Colors.textSecondary }]}>
+                ~{recommendation.estimatedCompletionMonths} mo
+              </Text>
+            </View>
+          )}
+        </View>
 
         <View style={styles.reasoningContainer}>
           {recommendation.reasoning.slice(0, 2).map((reason, index) => (
@@ -232,5 +261,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     flex: 1,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

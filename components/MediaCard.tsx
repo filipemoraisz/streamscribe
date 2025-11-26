@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { tmdbService } from '../services/tmdb';
 import { Movie, TVShow } from '../types';
@@ -11,6 +11,7 @@ interface MediaCardProps {
   onPress: () => void;
   onWatchlistPress: () => void;
   isInWatchlist: boolean;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const MediaCard: React.FC<MediaCardProps> = ({
@@ -19,6 +20,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   onPress,
   onWatchlistPress,
   isInWatchlist,
+  style,
 }) => {
   const title = type === 'movie' ? (item as Movie).title : (item as TVShow).name;
   const releaseDate = type === 'movie' ? (item as Movie).release_date : (item as TVShow).first_air_date;
@@ -26,7 +28,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   const posterUrl = tmdbService.getImageURL(item.poster_path, 'w500');
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress}>
+    <TouchableOpacity style={[styles.container, style]} onPress={onPress}>
       <View style={styles.imageContainer}>
         {posterUrl ? (
           <Image source={{ uri: posterUrl }} style={styles.poster} />
@@ -64,21 +66,22 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    width: 140,
-    marginRight: 12,
+    // Removed fixed width and margin
   },
   imageContainer: {
     position: 'relative',
+    width: '100%',
+    aspectRatio: 2 / 3, // Standard poster ratio
   },
   poster: {
-    width: 140,
-    height: 210,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     backgroundColor: Colors.surface,
   },
   placeholderPoster: {
-    width: 140,
-    height: 210,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     backgroundColor: Colors.surface,
     justifyContent: 'center',
@@ -95,20 +98,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  info: {
-    paddingTop: 8,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  year: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginBottom: 4,
-  },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -117,5 +106,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginLeft: 4,
+  },
+  info: {
+    paddingTop: 8,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 4,
+    lineHeight: 20,
+    height: 40, // 2 lines * 20 lineHeight
+  },
+  year: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginBottom: 4,
   },
 });

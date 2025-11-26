@@ -2,12 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MediaCard } from '../../components/MediaCard';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { storageService } from '../../services/storage';
 import { WatchlistItem } from '../../types';
+
+const { width } = Dimensions.get('window');
+const numColumns = 2; // Adjust based on screen size if needed
+const GAP = 16;
+const PADDING = 16;
+const itemWidth = (width - (PADDING * 2) - (GAP * (numColumns - 1))) / numColumns;
 
 export default function WatchlistScreen() {
   const { user } = useAuth();
@@ -126,13 +132,14 @@ export default function WatchlistScreen() {
     };
 
     return (
-      <View style={styles.cardContainer}>
+      <View style={[styles.cardContainer, { width: itemWidth }]}>
         <MediaCard
           item={mediaItem}
           type={item.type}
           onPress={() => handleItemPress(item)}
           onWatchlistPress={() => handleWatchlistPress(item)}
           isInWatchlist={true}
+          style={{ width: '100%' }}
         />
         <TouchableOpacity
           style={[styles.watchedButton, item.watched && styles.watchedButtonActive]}
@@ -207,9 +214,9 @@ export default function WatchlistScreen() {
           data={filteredWatchlist}
           renderItem={renderItem}
           keyExtractor={(item) => `${item.type}-${item.id}`}
-          numColumns={2}
+          numColumns={numColumns}
           contentContainerStyle={styles.listContainer}
-          columnWrapperStyle={styles.row}
+          columnWrapperStyle={[styles.row, { gap: GAP }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -263,7 +270,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cardContainer: {
-    width: '48%',
     marginBottom: 16,
   },
   watchedButton: {

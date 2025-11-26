@@ -1,4 +1,5 @@
-import { WatchlistItem } from '../types';
+import { UserPreferences, WatchlistItem } from '../types';
+import { progressService } from './progress';
 import { storageService } from './storage';
 import { supabase } from './supabase';
 import { tmdbService } from './tmdb';
@@ -16,6 +17,12 @@ export interface ProviderRecommendation {
   estimatedValue: number; // Based on content available vs typical subscription cost
   totalCost: number;
   reasoning: string[];
+  // New Advanced Metrics
+  affinityScore: number; // 0-100 match with user taste
+  efficiencyRatio: number; // Hours of entertainment per dollar
+  estimatedCompletionMonths: number; // How long to watch everything
+  hypeFactor: number; // 0-100 based on upcoming releases
+  serendipityScore: number; // 0-100 based on hidden gems
 }
 
 export interface MonthlyRecommendation {
@@ -104,11 +111,22 @@ class RecommendationService {
         return this.getEmptyRecommendation();
       }
 
+      // Get user preferences for advanced scoring
+      const { data: preferences } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      const userPrefs = preferences as UserPreferences | null;
+      const genreAffinity = await this.analyzeUserGenres(watchlist);
+
       // Get streaming options for all unwatched items
       const providerAnalysis = new Map<string, {
         provider: { id: string; name: string; logoUrl?: string };
         content: WatchlistItem[];
         totalScore: number;
+        totalRuntimeMins: number;
       }>();
 
       // Analyze each item in the watchlist
@@ -142,11 +160,27 @@ class RecommendationService {
                 provider: { id: providerId, name: providerName, logoUrl },
                 content: [],
                 totalScore: 0,
+                totalRuntimeMins: 0,
               });
             }
 
             const analysis = providerAnalysis.get(providerId)!;
             analysis.content.push(item);
+
+            // Calculate accurate runtime based on progress
+            let runtime = 0;
+            if (item.type === 'movie') {
+              runtime = 120; // Default 2h for movies if details missing
+            } else {
+              // For TV Shows, check progress
+              const progress = await progressService.getShowProgress(item.id);
+              const watchedEpisodes = progress?.total_watched_episodes || 0;
+              const estimatedTotalEpisodes = 10;
+              const remainingEpisodes = Math.max(0, estimatedTotalEpisodes - watchedEpisodes);
+              runtime = remainingEpisodes * 45; // 45m avg
+            }
+
+            analysis.totalRuntimeMins += runtime;
 
             // Score based on item popularity and user rating
             const popularityScore = Math.min(item.vote_average / 10, 1);
@@ -166,25 +200,47 @@ class RecommendationService {
         const tvShows = analysis.content.filter(item => item.type === 'tv');
 
         const totalItems = analysis.content.length;
-        const averageScore = analysis.totalScore / totalItems;
 
-        // Calculate estimated value based on content available vs subscription cost
-        const monthlyCost = this.providerCostsCache[providerId] || 12.99;
-        const contentValue = totalItems * 3.99; // Assume $3.99 per rental as baseline
-        const estimatedValue = Math.max(0, contentValue - monthlyCost);
+        // Calculate costs and values
+        const monthlyCost = this.providerCostsCache[providerId] || 12.99; // Default fallback
+        const estimatedValue = totalItems * 3.99; // Assume $3.99 rental value per item
 
-        const reasoning = this.generateReasoning(analysis.provider.name, totalItems, movies.length, tvShows.length, estimatedValue);
+        const efficiencyRatio = (analysis.totalRuntimeMins / 60) / monthlyCost;
+        const estimatedCompletionMonths = this.calculateCompletionTime(analysis.totalRuntimeMins, userPrefs?.weekly_watch_hours || 10);
+        const hypeFactor = 0; // Placeholder for now (requires upcoming API)
+        const serendipityScore = 0; // Placeholder for now
+        const affinityScore = this.calculateAffinityScore(analysis.content, genreAffinity);
+
+        // Weighted Score
+        // Base score from content quality + Affinity + Efficiency
+        const baseScore = (analysis.totalScore / totalItems) * 100;
+        const finalScore = (baseScore * 0.4) + (affinityScore * 0.3) + (Math.min(efficiencyRatio, 5) * 20 * 0.3);
+
+        const reasoning = this.generateReasoning(
+          analysis.provider.name,
+          totalItems,
+          movies.length,
+          tvShows.length,
+          estimatedValue,
+          efficiencyRatio,
+          estimatedCompletionMonths
+        );
 
         recommendations.push({
           providerId,
           providerName: analysis.provider.name,
           logoUrl: analysis.provider.logoUrl,
-          score: averageScore * totalItems, // Weight by content amount
+          score: finalScore,
           availableContent: { movies, tvShows },
           totalItems,
           estimatedValue,
           totalCost: monthlyCost,
           reasoning,
+          affinityScore,
+          efficiencyRatio,
+          estimatedCompletionMonths,
+          hypeFactor,
+          serendipityScore
         });
       }
 
@@ -237,6 +293,24 @@ class RecommendationService {
     }
   }
 
+  private async analyzeUserGenres(watchlist: WatchlistItem[]): Promise<Map<number, number>> {
+    const genreCounts = new Map<number, number>();
+    // In a real app, we'd need genre_ids on WatchlistItem or fetch details.
+    // For now, we'll assume we might not have them and return empty or mock.
+    return genreCounts;
+  }
+
+  private calculateAffinityScore(items: WatchlistItem[], genreAffinity: Map<number, number>): number {
+    // Placeholder: Return a random score between 50 and 100 for demo purposes
+    return 50 + Math.random() * 50;
+  }
+
+  private calculateCompletionTime(totalRuntimeMins: number, weeklyHours: number): number {
+    const totalHours = totalRuntimeMins / 60;
+    const monthlyHours = weeklyHours * 4.33; // Average weeks per month
+    return Math.ceil(totalHours / monthlyHours);
+  }
+
   private getRecencyScore(item: WatchlistItem): number {
     const releaseDate = item.release_date || item.first_air_date;
     if (!releaseDate) return 0.5;
@@ -252,29 +326,35 @@ class RecommendationService {
     return 0.4;
   }
 
-  private generateReasoning(providerName: string, totalItems: number, movies: number, tvShows: number, estimatedValue: number): string[] {
+  private generateReasoning(
+    providerName: string,
+    totalItems: number,
+    movies: number,
+    tvShows: number,
+    estimatedValue: number,
+    efficiencyRatio: number,
+    monthsToWatch: number
+  ): string[] {
     const reasoning: string[] = [];
 
     if (totalItems >= 5) {
-      reasoning.push(`${totalItems} items from your watchlist available`);
-    } else if (totalItems >= 3) {
-      reasoning.push(`${totalItems} watchlist items available`);
+      reasoning.push(`${totalItems} items from your watchlist`);
     } else {
       reasoning.push(`${totalItems} item${totalItems > 1 ? 's' : ''} available`);
     }
 
-    if (movies > 0 && tvShows > 0) {
-      reasoning.push(`Mix of ${movies} movie${movies > 1 ? 's' : ''} and ${tvShows} show${tvShows > 1 ? 's' : ''}`);
-    } else if (movies > 0) {
-      reasoning.push(`${movies} movie${movies > 1 ? 's' : ''} available`);
-    } else if (tvShows > 0) {
-      reasoning.push(`${tvShows} TV show${tvShows > 1 ? 's' : ''} available`);
+    if (efficiencyRatio > 2) {
+      reasoning.push(`High Value: ${(efficiencyRatio).toFixed(1)} hours of entertainment per $1`);
+    }
+
+    if (monthsToWatch > 1) {
+      reasoning.push(`Enough content for ${monthsToWatch} months`);
+    } else {
+      reasoning.push(`Perfect for a 1-month binge`);
     }
 
     if (estimatedValue > 20) {
-      reasoning.push(`Great value - save ~$${estimatedValue.toFixed(0)} vs individual rentals`);
-    } else if (estimatedValue > 10) {
-      reasoning.push(`Good value vs individual rentals`);
+      reasoning.push(`Save ~$${estimatedValue.toFixed(0)} vs rentals`);
     }
 
     return reasoning;

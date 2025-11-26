@@ -1,13 +1,31 @@
-import { router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MediaCard } from '../components/MediaCard';
-import { SearchBar } from '../components/SearchBar';
-import { Colors } from '../constants/Colors';
-import { useAuth } from '../contexts/AuthContext';
-import { storageService } from '../services/storage';
-import { tmdbService } from '../services/tmdb';
-import { Movie, TVShow } from '../types';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { CategoryCard } from '../../../components/CategoryCard';
+import { MediaCard } from '../../../components/MediaCard';
+import { Colors } from '../../../constants/Colors';
+import { useAuth } from '../../../contexts/AuthContext';
+import { storageService } from '../../../services/storage';
+import { tmdbService } from '../../../services/tmdb';
+import { Movie, TVShow } from '../../../types';
+
+const MOVIE_CATEGORIES = [
+  { id: 'trending', title: 'Trending Now', colors: ['#FF2E00', '#FF8C00'] as const, icon: 'flame.fill' },
+  { id: 'upcoming', title: 'New Releases', colors: ['#00C6FF', '#0072FF'] as const, icon: 'calendar' },
+  { id: 'top_rated', title: 'Top Rated', colors: ['#F2C94C', '#F2994A'] as const, icon: 'star.fill' },
+  { id: '28', title: 'Action', colors: ['#FF416C', '#FF4B2B'] as const, icon: 'bolt.fill' },
+  { id: '35', title: 'Comedy', colors: ['#F7971E', '#FFD200'] as const, icon: 'face.smiling.fill' },
+  { id: '18', title: 'Drama', colors: ['#8E2DE2', '#4A00E0'] as const, icon: 'theatermasks.fill' },
+];
+
+const TV_CATEGORIES = [
+  { id: 'trending', title: 'Trending TV', colors: ['#11998e', '#38ef7d'] as const, icon: 'tv.fill' },
+  { id: 'airing_today', title: 'Airing Today', colors: ['#FC466B', '#3F5EFB'] as const, icon: 'play.tv.fill' },
+  { id: 'top_rated', title: 'Top Rated', colors: ['#FDC830', '#F37335'] as const, icon: 'star.circle.fill' },
+  { id: '10765', title: 'Sci-Fi & Fantasy', colors: ['#00F260', '#0575E6'] as const, icon: 'sparkles' },
+  { id: '16', title: 'Animation', colors: ['#FF0099', '#493240'] as const, icon: 'paintbrush.fill' },
+  { id: '99', title: 'Documentary', colors: ['#20002c', '#cbb4d4'] as const, icon: 'camera.fill' },
+];
 
 export default function SearchScreen() {
   const { user } = useAuth();
@@ -143,12 +161,37 @@ export default function SearchScreen() {
     );
   };
 
+  const renderCategory = ({ item, type }: { item: { id: string; title: string; colors: readonly string[] | string[]; icon: string }, type: 'movie' | 'tv' }) => (
+    <View style={styles.categoryWrapper}>
+      <CategoryCard
+        title={item.title}
+        gradientColors={item.colors}
+        icon={item.icon}
+        onPress={() => router.push({
+          pathname: '/(tabs)/search/category/[id]',
+          params: { id: item.id, title: item.title, type }
+        })}
+      />
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
-      <SearchBar
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        onSubmit={handleSearch}
+    <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerTitle: 'Search',
+          headerLargeTitle: true,
+          headerSearchBarOptions: {
+            placeholder: 'Search for movies & TV shows',
+            onChangeText: (event) => {
+              setSearchQuery(event.nativeEvent.text);
+            },
+            onSearchButtonPress: (event) => {
+              performSearch(event.nativeEvent.text);
+            },
+          },
+        }}
       />
 
       {/* Loading state */}
@@ -172,17 +215,25 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {/* Empty state - no search query */}
+      {/* Browse Categories - Show when no search query */}
       {!searchQuery.trim() && !loading && (
-        <View style={styles.centerContainer}>
-          <Text style={styles.emptyTitle}>Search for Movies & TV Shows</Text>
-          <Text style={styles.emptyText}>
-            Enter a title, actor, or keyword to find content
-          </Text>
-        </View>
+        <FlatList
+          data={[...MOVIE_CATEGORIES.map(c => ({ ...c, type: 'movie' as const })), ...TV_CATEGORIES.map(c => ({ ...c, type: 'tv' as const }))]}
+          renderItem={({ item }) => renderCategory({ item, type: item.type })}
+          keyExtractor={(item) => `${item.type}-${item.id}`}
+          numColumns={2}
+          contentContainerStyle={styles.listContainer}
+          columnWrapperStyle={styles.row}
+          contentInsetAdjustmentBehavior="automatic"
+        //ListHeaderComponent={
+        //<View style={styles.sectionHeader}>
+        //  <Text style={styles.sectionTitle}>Browse Categories</Text>
+        //</View>
+        //}
+        />
       )}
 
-      {/* Empty state - no results */}
+      {/* Empty state - no results (only show when searching) */}
       {searchQuery.trim() && searchResults.length === 0 && !loading && !error && (
         <View style={styles.centerContainer}>
           <Text style={styles.emptyTitle}>No Results Found</Text>
@@ -192,8 +243,8 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {/* Results */}
-      {searchResults.length > 0 && !loading && (
+      {/* Search Results */}
+      {searchQuery.trim() && searchResults.length > 0 && !loading && (
         <FlatList
           data={searchResults}
           renderItem={renderItem}
@@ -201,6 +252,7 @@ export default function SearchScreen() {
           numColumns={2}
           contentContainerStyle={styles.listContainer}
           columnWrapperStyle={styles.row}
+          contentInsetAdjustmentBehavior="automatic"
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -211,7 +263,7 @@ export default function SearchScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -229,6 +281,17 @@ const styles = StyleSheet.create({
   cardContainer: {
     width: '48%',
     marginBottom: 16,
+  },
+  categoryWrapper: {
+    width: '48%',
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.text,
   },
   centerContainer: {
     flex: 1,
