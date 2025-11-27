@@ -9,6 +9,7 @@ import { Movie, TVShow, WatchlistItem } from '@/types';
 import { Link, router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   Image,
   RefreshControl,
@@ -80,18 +81,12 @@ export default function HomeScreen() {
       const progressMap = new Map(allProgress.map(p => [p.show_id, p]));
 
       const tvWatchlist = watchlistData.filter(item => item.type === 'tv');
-
       await Promise.all(tvWatchlist.map(async (item) => {
-        const progress = progressMap.get(item.id);
-        const lastSeason = progress ? progress.current_season : 0;
-        const lastEpisode = progress ? progress.current_episode : 0;
-
-        const next = await tmdbService.getNextEpisode(item.id, lastSeason, lastEpisode);
-        if (next) {
-          nextEps[item.id] = next;
+        const nextEpisode = await progressService.getNextEpisodeToWatch(item.id);
+        if (nextEpisode && nextEpisode.season_number && nextEpisode.episode_number) {
+          nextEps[item.id] = { season: nextEpisode.season_number, episode: nextEpisode.episode_number };
         }
       }));
-
       setNextEpisodes(nextEps);
 
       // Calculate stats
@@ -132,8 +127,26 @@ export default function HomeScreen() {
     router.push(`/details/${type}/${item.id}`);
   };
 
-  const handleNextEpisodePress = (item: TVShow, season: number, episode: number) => {
-    router.push(`/episode/${item.id}/${season}/${episode}`);
+  //const handleNextEpisodePress = (item: TVShow, season: number, episode: number) => {
+  //router.push(`/episode/${item.id}/${season}/${episode}`);
+  //};
+  const handleNextEpisodePress = async (item: TVShow, season: number, episode: number) => {
+    try {
+      const nextEpisode = await progressService.getNextEpisodeToWatch(item.id);
+
+      if (!nextEpisode) {
+        Alert.alert("No episodes available", "There are no new episodes to watch for this show.");
+        return;
+      }
+      if (nextEpisode.air_date && !progressService.isEpisodeAired(nextEpisode.air_date)) {
+        Alert.alert("Oops...", "Nice try but you'll need to wait for this!");
+        return;
+      }
+      router.push(`/episode/${item.id}/${season}/${episode}`);
+    } catch (error) {
+      console.error('Error checking episode:', error);
+      Alert.alert("Error", "Failed to check episode availability. Please try again.");
+    }
   };
 
   const handleWatchlistPress = async (item: Movie | TVShow, type: 'movie' | 'tv') => {

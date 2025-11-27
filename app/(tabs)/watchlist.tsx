@@ -1,16 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Dimensions, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MediaCard } from '../../components/MediaCard';
+import { FilterType, WatchlistFilter } from '../../components/WatchlistFilter';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
+import { progressService } from '../../services/progress';
 import { storageService } from '../../services/storage';
-import { WatchlistItem } from '../../types';
+import { ShowProgress, WatchlistItem } from '../../types';
 
 const { width } = Dimensions.get('window');
-const numColumns = 2; // Adjust based on screen size if needed
+const numColumns = 2;
 const GAP = 16;
 const PADDING = 16;
 const itemWidth = (width - (PADDING * 2) - (GAP * (numColumns - 1))) / numColumns;
@@ -18,12 +20,21 @@ const itemWidth = (width - (PADDING * 2) - (GAP * (numColumns - 1))) / numColumn
 export default function WatchlistScreen() {
   const { user } = useAuth();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  const [filter, setFilter] = useState<'all' | 'movies' | 'tv' | 'watched' | 'unwatched'>('all');
+  const [showProgress, setShowProgress] = useState<Map<number, ShowProgress>>(new Map());
+  const [filter, setFilter] = useState<FilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Redirect to login if not authenticated
+  // Refs to track current state for use inside callbacks (avoiding stale closures)
+  const watchlistRef = useRef(watchlist);
+  const showProgressRef = useRef(showProgress);
+
+  useEffect(() => {
+    watchlistRef.current = watchlist;
+    showProgressRef.current = showProgress;
+  }, [watchlist, showProgress]);
+
   useEffect(() => {
     if (!user) {
       router.replace('/(auth)/login');
@@ -38,12 +49,29 @@ export default function WatchlistScreen() {
 
   const loadWatchlist = async (isRefresh = false) => {
     try {
-      if (!isRefresh) {
+      // Use ref to check current length to avoid stale closure
+      if (!isRefresh && watchlistRef.current.length === 0) {
         setIsLoading(true);
       }
       setError(null);
-      const items = await storageService.getWatchlist();
-      setWatchlist(items.sort((a, b) => new Date(b.added_date).getTime() - new Date(a.added_date).getTime()));
+      const [items, progressList] = await Promise.all([
+        storageService.getWatchlist(),
+        progressService.getAllShowsProgress()
+      ]);
+
+      const progressMap = new Map(progressList.map(p => [p.show_id, p]));
+
+      // Compare with ref.current to get latest state
+      if (JSON.stringify(items) !== JSON.stringify(watchlistRef.current)) {
+        setWatchlist(items);
+      }
+
+      const currentProgressArray = Array.from(showProgressRef.current.entries());
+      const newProgressArray = Array.from(progressMap.entries());
+      if (JSON.stringify(currentProgressArray) !== JSON.stringify(newProgressArray)) {
+        setShowProgress(progressMap);
+      }
+
     } catch (error) {
       console.error('Error loading watchlist:', error);
       setError('Failed to load your watchlist. Please try again.');
@@ -82,34 +110,94 @@ export default function WatchlistScreen() {
     }
   };
 
-  const getFilteredWatchlist = () => {
-    switch (filter) {
-      case 'movies':
-        return watchlist.filter(item => item.type === 'movie');
-      case 'tv':
-        return watchlist.filter(item => item.type === 'tv');
-      case 'watched':
-        return watchlist.filter(item => item.watched);
-      case 'unwatched':
-        return watchlist.filter(item => !item.watched);
-      default:
-        return watchlist;
+  const getSortedAndFilteredWatchlist = () => {
+    // 1. Filter by Category
+    let filtered = watchlist;
+
+    if (filter === 'movies') {
+      filtered = filtered.filter(item => item.type === 'movie');
+    } else if (filter === 'active') {
+      filtered = filtered.filter(item => {
+        if (item.type === 'movie') return !item.watched;
+        const progress = showProgress.get(item.id);
+        return progress?.status === 'watching' || (!progress && !item.watched);
+      });
+    } else if (filter === 'up_to_date') {
+      filtered = filtered.filter(item => {
+        if (item.type === 'movie') return false;
+        const progress = showProgress.get(item.id);
+        return progress?.status === 'up_to_date';
+      });
     }
+
+    // 2. Filter out Completed/Up-to-date items (they go to History)
+    // UNLESS we are specifically filtering for them
+    if (filter !== 'up_to_date') {
+      const activeItems: WatchlistItem[] = [];
+
+      filtered.forEach(item => {
+        const isMovie = item.type === 'movie';
+        const progress = showProgress.get(item.id);
+
+        const isCompleted = isMovie
+          ? item.watched
+          : (progress?.status === 'completed' || progress?.status === 'up_to_date');
+
+        if (!isCompleted) {
+          activeItems.push(item);
+        }
+      });
+      filtered = activeItems;
+    }
+
+    const activeItems = filtered;
+
+    // 3. Sort Active Items by Priority
+    // Priority: Watching > Plan to Watch (No progress)
+    activeItems.sort((a, b) => {
+      const getPriority = (item: WatchlistItem) => {
+        if (item.type === 'movie') return 3; // Plan to watch
+        const p = showProgress.get(item.id);
+        if (!p) return 3; // Plan to watch
+        if (p.status === 'watching') return 1;
+        return 3;
+      };
+
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      // Secondary sort: Last watched or Added date
+      const dateA = new Date(a.added_date).getTime();
+      const dateB = new Date(b.added_date).getTime();
+      return dateB - dateA;
+    });
+
+    return activeItems;
   };
 
-  const renderFilterButton = (filterType: typeof filter, label: string) => (
-    <TouchableOpacity
-      style={[styles.filterButton, filter === filterType && styles.filterButtonActive]}
-      onPress={() => setFilter(filterType)}
-    >
-      <Text style={[styles.filterButtonText, filter === filterType && styles.filterButtonTextActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderStatusBadge = (item: WatchlistItem) => {
+    if (item.type === 'movie') {
+      return null; // Movies in this list are unwatched
+    }
+
+    const progress = showProgress.get(item.id);
+    if (!progress) return null;
+
+    if (progress.status === 'watching') {
+      return (
+        <View style={[styles.badge, { backgroundColor: Colors.warning }]}>
+          <Text style={styles.badgeText}>Watching</Text>
+        </View>
+      );
+    }
+    return null;
+  };
 
   const renderItem = ({ item }: { item: WatchlistItem }) => {
-    // Convert WatchlistItem to Movie/TVShow format for MediaCard
     const mediaItem = {
       id: item.id,
       title: item.title,
@@ -133,46 +221,47 @@ export default function WatchlistScreen() {
 
     return (
       <View style={[styles.cardContainer, { width: itemWidth }]}>
-        <MediaCard
-          item={mediaItem}
-          type={item.type}
-          onPress={() => handleItemPress(item)}
-          onWatchlistPress={() => handleWatchlistPress(item)}
-          isInWatchlist={true}
-          style={{ width: '100%' }}
-        />
-        <TouchableOpacity
-          style={[styles.watchedButton, item.watched && styles.watchedButtonActive]}
-          onPress={() => handleToggleWatched(item)}
-        >
-          <Ionicons
-            name={item.watched ? "checkmark-circle" : "checkmark-circle-outline"}
-            size={20}
-            color={item.watched ? Colors.success : Colors.textMuted}
+        <View>
+          <MediaCard
+            item={mediaItem}
+            type={item.type}
+            onPress={() => handleItemPress(item)}
+            onWatchlistPress={() => handleWatchlistPress(item)}
+            isInWatchlist={true}
+            style={{ width: '100%' }}
           />
-          <Text style={[styles.watchedButtonText, item.watched && styles.watchedButtonTextActive]}>
-            {item.watched ? 'Watched' : 'Mark as Watched'}
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.badgeContainer}>
+            {renderStatusBadge(item)}
+          </View>
+
+          {/* Quick Action Overlay */}
+          <TouchableOpacity
+            style={[styles.quickAction, item.watched && styles.quickActionActive]}
+            onPress={() => handleToggleWatched(item)}
+          >
+            <Ionicons
+              name={item.watched ? "checkmark" : "add"}
+              size={16}
+              color={item.watched ? "#FFF" : Colors.text}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
 
-  const filteredWatchlist = getFilteredWatchlist();
+  const activeItems = getSortedAndFilteredWatchlist();
 
-  // Loading state
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading your watchlist...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Error state
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
@@ -188,30 +277,32 @@ export default function WatchlistScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.filtersContainer}>
-        {renderFilterButton('all', 'All')}
-        {renderFilterButton('movies', 'Movies')}
-        {renderFilterButton('tv', 'TV Shows')}
-        {renderFilterButton('unwatched', 'To Watch')}
-        {renderFilterButton('watched', 'Watched')}
+      {/* Custom Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Watchlist</Text>
+        <TouchableOpacity
+          style={styles.archiveButton}
+          onPress={() => router.push('/history')}
+        >
+          <Ionicons name="archive-outline" size={24} color={Colors.text} />
+        </TouchableOpacity>
       </View>
 
-      {filteredWatchlist.length === 0 ? (
+      <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
+
+      {activeItems.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="bookmark-outline" size={64} color={Colors.textMuted} />
-          <Text style={styles.emptyTitle}>
-            {filter === 'all' ? 'Your watchlist is empty' : `No ${filter === 'movies' ? 'movies' : filter === 'tv' ? 'TV shows' : filter} found`}
-          </Text>
+          <Ionicons name="film-outline" size={64} color={Colors.textMuted} />
+          <Text style={styles.emptyTitle}>No content found</Text>
           <Text style={styles.emptyText}>
             {filter === 'all'
-              ? 'Use the search tab to find and add movies or TV shows to your watchlist'
-              : `Try changing the filter or add more ${filter === 'movies' ? 'movies' : filter === 'tv' ? 'TV shows' : 'content'} to your watchlist`
-            }
+              ? 'Your watchlist is empty'
+              : `No items in "${filter.replace('_', ' ')}"`}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={filteredWatchlist}
+          data={activeItems}
           renderItem={renderItem}
           keyExtractor={(item) => `${item.type}-${item.id}`}
           numColumns={numColumns}
@@ -222,7 +313,6 @@ export default function WatchlistScreen() {
               refreshing={isRefreshing}
               onRefresh={onRefresh}
               tintColor={Colors.primary}
-              colors={[Colors.primary]}
             />
           }
         />
@@ -236,32 +326,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  filtersContainer: {
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 8,
+    backgroundColor: Colors.background,
   },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  filterButtonTextActive: {
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: Colors.text,
-    fontWeight: '600',
+  },
+  archiveButton: {
+    padding: 8,
   },
   listContainer: {
     padding: 16,
@@ -271,29 +350,7 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     marginBottom: 16,
-  },
-  watchedButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.surface,
-  },
-  watchedButtonActive: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-  },
-  watchedButtonText: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  watchedButtonTextActive: {
-    color: Colors.success,
-    fontWeight: '600',
+    position: 'relative',
   },
   centerContainer: {
     flex: 1,
@@ -301,17 +358,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 32,
   },
-  loadingText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    marginTop: 16,
-  },
   errorText: {
     fontSize: 16,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
-    lineHeight: 24,
   },
   retryButton: {
     backgroundColor: Colors.primary,
@@ -341,6 +392,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.textMuted,
     textAlign: 'center',
-    lineHeight: 24,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 1,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  quickAction: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickActionActive: {
+    backgroundColor: Colors.success,
   },
 });
