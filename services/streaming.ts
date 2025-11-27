@@ -23,9 +23,6 @@ class StreamingService {
 
   async getStreamingOptions(tmdbId: number, type: 'movie' | 'tv'): Promise<StreamingOption[]> {
     try {
-      console.log('RapidAPI Key:', this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'undefined');
-      console.log('Making streaming API call for:', tmdbId, type);
-
       const endpoint = `/shows/${type === 'movie' ? 'movie' : 'tv'}/${tmdbId}`;
       const data = await this.fetchFromStreamingAPI(endpoint);
 

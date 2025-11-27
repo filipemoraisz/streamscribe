@@ -2,15 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Logo } from '../../components/Logo';
 import { Colors } from '../../constants/Colors';
@@ -54,7 +54,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
           <Logo width={150} height={80} />
@@ -111,7 +111,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don't have an account? </Text>
+            <Text style={styles.registerText}>Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={navigateToRegister}>
               <Text style={styles.registerLink}>Sign Up</Text>
             </TouchableOpacity>

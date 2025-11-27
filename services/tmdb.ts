@@ -459,6 +459,37 @@ class TMDBService {
     if (!logoPath) return 'https://via.placeholder.com/92x92/333333/FFFFFF?text=?';
     return `${API_CONFIG.TMDB_IMAGE_BASE_URL}/w92${logoPath}`;
   }
+  async getNextEpisode(tvId: number, lastSeason: number, lastEpisode: number): Promise<{ season: number; episode: number } | null> {
+    try {
+      const details = await this.getTVShowDetails(tvId);
+
+      // If no progress (0, 0), return S1E1
+      if (lastSeason === 0 && lastEpisode === 0) {
+        const season1 = details.seasons.find(s => s.season_number === 1);
+        return season1 && season1.episode_count > 0 ? { season: 1, episode: 1 } : null;
+      }
+
+      const currentSeason = details.seasons.find(s => s.season_number === lastSeason);
+
+      if (currentSeason) {
+        if (lastEpisode < currentSeason.episode_count) {
+          return { season: lastSeason, episode: lastEpisode + 1 };
+        } else {
+          // Check next season
+          // Find the next season number (might not be sequential if specials exist or gaps)
+          // But usually sequential.
+          const nextSeason = details.seasons.find(s => s.season_number === lastSeason + 1);
+          if (nextSeason && nextSeason.episode_count > 0) {
+            return { season: lastSeason + 1, episode: 1 };
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting next episode:', error);
+      return null;
+    }
+  }
 }
 
 export const tmdbService = new TMDBService();

@@ -25,6 +25,9 @@ function RootLayoutNav() {
     } else if (user && inAuthGroup) {
       // Redirect to home if authenticated and trying to access auth screens
       router.replace('/(tabs)');
+    } else if (user && inOnboardingGroup && preferences?.onboarding_completed) {
+      // Redirect to home if authenticated, in onboarding, but already completed it
+      router.replace('/(tabs)');
     }
   }, [user, preferences, loading, segments]);
 

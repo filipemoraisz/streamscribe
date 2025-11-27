@@ -1,323 +1,239 @@
-import { BlurView } from 'expo-blur';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { ImpactHeader } from '@/components/ImpactHeader';
+import { MediaSection } from '@/components/MediaSection';
+import { Colors } from '@/constants/Colors';
+import { optimizerService } from '@/services/optimizer';
+import { progressService } from '@/services/progress';
+import { storageService } from '@/services/storage';
+import { tmdbService } from '@/services/tmdb';
+import { Movie, TVShow, WatchlistItem } from '@/types';
+import { Link, router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Logo } from '../../components/Logo';
-import { MediaSection } from '../../components/MediaSection';
-import { RecommendationsWidget } from '../../components/RecommendationsWidget';
-import { Colors } from '../../constants/Colors';
-import { useAuth } from '../../contexts/AuthContext';
-import { storageService } from '../../services/storage';
-import { tmdbService } from '../../services/tmdb';
-import { Movie, TVShow } from '../../types';
 
-const HEADER_HEIGHT = 60;
+type Section = {
+  title: string;
+  data: (Movie | TVShow)[];
+  type: 'movie' | 'tv';
+};
 
 export default function HomeScreen() {
-  const { user } = useAuth();
-  const colorScheme = useColorScheme();
-  const iconColor = colorScheme === 'dark' ? 'white' : 'black';
   const insets = useSafeAreaInsets();
-
-  const scrollY = useSharedValue(0);
-
-  const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
-  const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
-  const [topRatedMovies, setTopRatedMovies] = useState<Movie[]>([]);
-  const [upcomingMovies, setUpcomingMovies] = useState<Movie[]>([]);
-  const [nowPlayingMovies, setNowPlayingMovies] = useState<Movie[]>([]);
-
-  const [trendingTVShows, setTrendingTVShows] = useState<TVShow[]>([]);
-  const [popularTVShows, setPopularTVShows] = useState<TVShow[]>([]);
-  const [topRatedTVShows, setTopRatedTVShows] = useState<TVShow[]>([]);
-  const [airingTodayTVShows, setAiringTodayTVShows] = useState<TVShow[]>([]);
-  const [onTheAirTVShows, setOnTheAirTVShows] = useState<TVShow[]>([]);
-
-  const [watchlistIds, setWatchlistIds] = useState<Set<string>>(new Set());
+  const [sections, setSections] = useState<Section[]>([]);
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [nextEpisodes, setNextEpisodes] = useState<Record<number, { season: number; episode: number }>>({});
+  const [stats, setStats] = useState({
+    savings: 0,
+    efficiency: 0,
+    streak: 0,
+  });
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!user) {
-      router.replace('/(auth)/login');
-    }
-  }, [user]);
-
-  useEffect(() => {
-    loadData();
-    loadWatchlist();
-  }, []);
-
-  const loadData = async () => {
+  const fetchContent = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('🏠 Home screen loading data...');
       const [
-        trending, popular, topRated, upcoming, nowPlaying,
-        trendingTV, popularTV, topRatedTV, airingTodayTV, onTheAirTV
+        trendingMovies,
+        trendingTV,
+        topRatedMovies,
+        topRatedTV,
+        upcomingMovies,
       ] = await Promise.all([
         tmdbService.getTrendingMovies(),
-        tmdbService.getPopularMovies(),
-        tmdbService.getTopRatedMovies(),
-        tmdbService.getUpcomingMovies(),
-        tmdbService.getNowPlayingMovies(),
         tmdbService.getTrendingTVShows(),
-        tmdbService.getPopularTVShows(),
+        tmdbService.getTopRatedMovies(),
         tmdbService.getTopRatedTVShows(),
-        tmdbService.getAiringTodayTVShows(),
-        tmdbService.getOnTheAirTVShows(),
+        tmdbService.getUpcomingMovies(),
       ]);
 
-      setTrendingMovies(trending);
-      setPopularMovies(popular);
-      setTopRatedMovies(topRated);
-      setUpcomingMovies(upcoming);
-      setNowPlayingMovies(nowPlaying);
-
-      setTrendingTVShows(trendingTV);
-      setPopularTVShows(popularTV);
-      setTopRatedTVShows(topRatedTV);
-      setAiringTodayTVShows(airingTodayTV);
-      setOnTheAirTVShows(onTheAirTV);
-
-      console.log('🏠 Home screen data loaded successfully');
-    } catch (err) {
-      console.error('Error loading home data:', err);
-      setError('Failed to load data. Please try again.');
-    } finally {
-      setIsLoading(false);
+      setSections([
+        { title: 'Trending Movies', data: trendingMovies, type: 'movie' },
+        { title: 'Trending TV Shows', data: trendingTV, type: 'tv' },
+        { title: 'Top Rated Movies', data: topRatedMovies, type: 'movie' },
+        { title: 'Top Rated TV Shows', data: topRatedTV, type: 'tv' },
+        { title: 'Upcoming Movies', data: upcomingMovies, type: 'movie' },
+      ]);
+    } catch (error) {
+      console.error('Error fetching content:', error);
     }
   };
 
-  const loadWatchlist = async () => {
-    if (!user) return;
-    const ids = await storageService.getWatchlistIds(user.id);
-    setWatchlistIds(ids);
+  const fetchUserData = async () => {
+    try {
+      const [watchlistData, allProgress] = await Promise.all([
+        storageService.getWatchlist(),
+        progressService.getAllShowsProgress(),
+      ]);
+
+      setWatchlist(watchlistData);
+
+      // Calculate next episodes for watchlist TV shows
+      const nextEps: Record<number, { season: number; episode: number }> = {};
+      const progressMap = new Map(allProgress.map(p => [p.show_id, p]));
+
+      const tvWatchlist = watchlistData.filter(item => item.type === 'tv');
+
+      await Promise.all(tvWatchlist.map(async (item) => {
+        const progress = progressMap.get(item.id);
+        const lastSeason = progress ? progress.current_season : 0;
+        const lastEpisode = progress ? progress.current_episode : 0;
+
+        const next = await tmdbService.getNextEpisode(item.id, lastSeason, lastEpisode);
+        if (next) {
+          nextEps[item.id] = next;
+        }
+      }));
+
+      setNextEpisodes(nextEps);
+
+      // Calculate stats
+      const plan = await optimizerService.generateOptimizationPlan(watchlistData);
+      setStats({
+        savings: plan.totalAnnualSavings,
+        efficiency: plan.averageEfficiency,
+        streak: plan.currentStreak,
+      });
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([loadData(), loadWatchlist()]);
+  const loadAllData = async () => {
+    setLoading(true);
+    await Promise.all([fetchContent(), fetchUserData()]);
+    setLoading(false);
     setRefreshing(false);
   };
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
+  useEffect(() => {
+    loadAllData();
+  }, []);
 
-  const headerAnimatedStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(scrollY.value, [0, 100], [0, 1], Extrapolation.CLAMP);
-    return {
-      opacity,
-    };
-  });
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData();
+    }, [])
+  );
 
-  const headerContainerStyle = useAnimatedStyle(() => {
-    return {
-      // No shadow or border as requested
-    };
-  });
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadAllData();
+  }, []);
 
-  const handleItemPress = (item: Movie | TVShow) => {
-    const type = 'title' in item ? 'movie' : 'tv';
+  const handleItemPress = (item: Movie | TVShow, type: 'movie' | 'tv') => {
     router.push(`/details/${type}/${item.id}`);
   };
 
-  const handleWatchlistPress = async (item: Movie | TVShow) => {
-    const type = 'title' in item ? 'movie' : 'tv';
-    const key = `${type}-${item.id}`;
-    const title = 'title' in item ? item.title : item.name;
-    const releaseDate = 'title' in item ? item.release_date : item.first_air_date;
+  const handleNextEpisodePress = (item: TVShow, season: number, episode: number) => {
+    router.push(`/episode/${item.id}/${season}/${episode}`);
+  };
 
-    try {
-      if (watchlistIds.has(key)) {
-        await storageService.removeFromWatchlist(item.id, type);
-        setWatchlistIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(key);
-          return newSet;
-        });
-      } else {
-        await storageService.addToWatchlist({
-          id: item.id,
-          type,
-          title,
-          poster_path: item.poster_path,
-          release_date: type === 'movie' ? releaseDate : undefined,
-          first_air_date: type === 'tv' ? releaseDate : undefined,
-          vote_average: item.vote_average,
-        });
-        setWatchlistIds(prev => new Set([...prev, key]));
-      }
-    } catch (error) {
-      console.error('Error updating watchlist:', error);
+  const handleWatchlistPress = async (item: Movie | TVShow, type: 'movie' | 'tv') => {
+    if (isInWatchlist(item.id, type)) {
+      await storageService.removeFromWatchlist(item.id, type);
+    } else {
+      await storageService.addToWatchlist({
+        id: item.id,
+        type,
+        title: 'title' in item ? item.title : item.name,
+        poster_path: item.poster_path,
+        vote_average: item.vote_average,
+        release_date: 'release_date' in item ? item.release_date : item.first_air_date,
+      });
     }
+    // Refresh user data immediately
+    await fetchUserData();
   };
 
-  const isInWatchlist = (id: number, type: 'movie' | 'tv' = 'movie') => {
-    return watchlistIds.has(`${type}-${id}`);
+  const handleMovieActionPress = async (item: Movie) => {
+    // Mark as watched
+    await storageService.markAsWatched({
+      id: item.id,
+      type: 'movie',
+      title: item.title,
+      poster_path: item.poster_path,
+      vote_average: item.vote_average,
+      release_date: item.release_date,
+    });
+
+    // Refresh user data immediately
+    await fetchUserData();
   };
 
-  if (isLoading) {
+  const isInWatchlist = (id: number, type: 'movie' | 'tv') => {
+    return watchlist.some((item) => item.id === id && item.type === type);
+  };
+
+  if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
 
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Text style={styles.retryText} onPress={loadData}>
-          Tap to retry
-        </Text>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <Animated.ScrollView
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            progressViewOffset={HEADER_HEIGHT + insets.top}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 10, paddingBottom: 100 },
+      ]}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+      }
+    >
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>Welcome back,</Text>
+          <Image
+            source={require('@/assets/images/logo-text-white.png')}
+            style={styles.logo}
+            resizeMode="contain"
           />
-        }
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: HEADER_HEIGHT + insets.top + 20 }
-        ]}>
-
-        <RecommendationsWidget />
-
-        <MediaSection
-          title="Trending Movies"
-          data={trendingMovies}
-          type="movie"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'movie')}
-        />
-
-        <MediaSection
-          title="Now Playing in Theaters"
-          data={nowPlayingMovies}
-          type="movie"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'movie')}
-        />
-
-        <MediaSection
-          title="Upcoming Movies"
-          data={upcomingMovies}
-          type="movie"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'movie')}
-        />
-
-        <MediaSection
-          title="Top Rated Movies"
-          data={topRatedMovies}
-          type="movie"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'movie')}
-        />
-
-        <MediaSection
-          title="Popular Movies"
-          data={popularMovies}
-          type="movie"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'movie')}
-        />
-
-        <MediaSection
-          title="Trending TV Shows"
-          data={trendingTVShows}
-          type="tv"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'tv')}
-        />
-
-        <MediaSection
-          title="Airing Today"
-          data={airingTodayTVShows}
-          type="tv"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'tv')}
-        />
-
-        <MediaSection
-          title="On The Air"
-          data={onTheAirTVShows}
-          type="tv"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'tv')}
-        />
-
-        <MediaSection
-          title="Top Rated TV Shows"
-          data={topRatedTVShows}
-          type="tv"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'tv')}
-        />
-
-        <MediaSection
-          title="Popular TV Shows"
-          data={popularTVShows}
-          type="tv"
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => isInWatchlist(id, 'tv')}
-        />
-      </Animated.ScrollView>
-
-      {/* Sticky Header */}
-      <Animated.View
-        style={[
-          styles.headerContainer,
-          { height: HEADER_HEIGHT + insets.top, paddingTop: insets.top },
-          headerContainerStyle
-        ]}
-      >
-        <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
-          <BlurView
-            intensity={80}
-            tint={colorScheme === 'dark' ? 'dark' : 'light'}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
-        <View style={styles.headerContent}>
-          <Logo />
         </View>
-      </Animated.View>
-    </View>
+      </View>
+
+      <ImpactHeader
+        totalSavings={stats.savings}
+        efficiency={stats.efficiency}
+        streak={stats.streak}
+      />
+
+      {watchlist.length > 0 && (
+        <MediaSection
+          title="Your Watchlist"
+          data={watchlist}
+          type="movie" // Placeholder, handled by MediaCard
+          onItemPress={(item) => handleItemPress(item, item.type as 'movie' | 'tv' || 'movie')}
+          onWatchlistPress={(item) => handleWatchlistPress(item, item.type as 'movie' | 'tv' || 'movie')}
+          isInWatchlist={(id) => isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv')}
+          nextEpisodes={nextEpisodes}
+          onNextEpisodePress={handleNextEpisodePress}
+          onMovieActionPress={handleMovieActionPress}
+        />
+      )}
+
+      {sections.map((section) => (
+        <MediaSection
+          key={section.title}
+          title={section.title}
+          data={section.data}
+          type={section.type}
+          onItemPress={(item) => handleItemPress(item, section.type)}
+          onWatchlistPress={(item) => handleWatchlistPress(item, section.type)}
+          isInWatchlist={(id) => isInWatchlist(id, section.type)}
+        />
+      ))}
+    </ScrollView>
   );
 }
 
@@ -326,45 +242,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  loadingContainer: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    padding: 20,
+  content: {
+    paddingBottom: 40,
   },
-  errorText: {
-    color: Colors.error,
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  retryText: {
-    color: Colors.primary,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  scrollContent: {
-    paddingBottom: 100, // Add padding for tab bar
-  },
-  headerContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-  },
-  headerContent: {
-    flex: 1,
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  greeting: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  logo: {
+    width: 150,
+    height: 30,
+    marginTop: 4,
   },
 });

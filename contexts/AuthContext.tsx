@@ -54,9 +54,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     const result = await authService.login(email, password);
     if (result.success && result.user) {
-      setUser(result.user);
+      // Fetch preferences BEFORE setting user to prevent race condition in _layout
       const prefs = await authService.getUserPreferences(result.user.id);
       setPreferences(prefs);
+      setUser(result.user);
     }
     return { success: result.success, message: result.message };
   };

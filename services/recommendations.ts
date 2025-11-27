@@ -95,12 +95,10 @@ class RecommendationService {
           .single();
 
         if (cachedRecs && cachedRecs.data) {
-          console.log('Using cached recommendations from DB');
           return cachedRecs.data as MonthlyRecommendation;
         }
       }
 
-      console.log('Generating new recommendations...');
       await this.fetchProviderCosts();
 
       // Get user's watchlist
@@ -281,8 +279,6 @@ class RecommendationService {
 
       if (upsertError) {
         console.error('Failed to save recommendations to DB:', upsertError);
-      } else {
-        console.log('Saved recommendations to DB');
       }
 
       return result;

@@ -1,3 +1,7 @@
+import { Colors } from '@/constants/Colors';
+import { progressService } from '@/services/progress';
+import { tmdbService } from '@/services/tmdb';
+import { Episode, EpisodeProgress, Season } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -10,12 +14,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-import { Colors } from '../../../constants/Colors';
-import { progressService } from '../../../services/progress';
-import { tmdbService } from '../../../services/tmdb';
-import { Episode, EpisodeProgress, Season } from '../../../types';
 
 const { width } = Dimensions.get('window');
 
@@ -206,8 +206,8 @@ export default function SeasonDetailsScreen() {
             </View>
 
             <TouchableOpacity style={styles.markAllButton} onPress={markAllWatched}>
-              <Ionicons name="checkmark-done" size={20} color={Colors.text} />
-              <Text style={styles.markAllButtonText}>Mark All Watched</Text>
+              <Ionicons name="checkmark-done" size={20} color={Colors.primary} />
+              <Text style={styles.markAllText}>Mark All Watched</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -375,17 +375,13 @@ const styles = StyleSheet.create({
   markAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 16,
+    gap: 8,
     paddingVertical: 8,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
   },
-  markAllButtonText: {
-    fontSize: 14,
+  markAllText: {
+    color: Colors.primary,
+    fontSize: 16,
     fontWeight: '600',
-    color: Colors.text,
-    marginLeft: 8,
   },
   overview: {
     paddingHorizontal: 16,

@@ -1,3 +1,7 @@
+import { Colors } from '@/constants/Colors';
+import { progressService } from '@/services/progress';
+import { tmdbService } from '@/services/tmdb';
+import { Episode } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -10,12 +14,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-import { Colors } from '../../../../constants/Colors';
-import { progressService } from '../../../../services/progress';
-import { tmdbService } from '../../../../services/tmdb';
-import { Episode } from '../../../../types';
 
 const { width } = Dimensions.get('window');
 
@@ -217,22 +217,33 @@ export default function EpisodeDetailsScreen() {
 
             <View style={styles.actionButtons}>
               <TouchableOpacity
-                style={[styles.watchedButton, isWatched && styles.watchedButtonActive]}
+                style={[
+                  styles.actionButton,
+                  isWatched ? styles.watchedButton : styles.unwatchedButton,
+                ]}
                 onPress={toggleWatched}
               >
                 <Ionicons
                   name={isWatched ? "checkmark-circle" : "checkmark-circle-outline"}
                   size={20}
-                  color={Colors.text}
+                  color={isWatched ? Colors.text : Colors.primary}
                 />
-                <Text style={styles.watchedButtonText}>
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    isWatched ? styles.watchedButtonText : styles.unwatchedButtonText,
+                  ]}
+                >
                   {isWatched ? 'Watched' : 'Mark as Watched'}
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.seasonButton} onPress={navigateToSeason}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={navigateToSeason}
+              >
                 <Ionicons name="list-outline" size={20} color={Colors.text} />
-                <Text style={styles.seasonButtonText}>View Season</Text>
+                <Text style={styles.secondaryButtonText}>View Season</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -391,43 +402,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  watchedButton: {
+  actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    gap: 8,
   },
-  watchedButtonActive: {
+  watchedButton: {
     backgroundColor: Colors.success,
-    borderColor: Colors.success,
+  },
+  unwatchedButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   watchedButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
     color: Colors.text,
-    marginLeft: 8,
   },
-  seasonButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  unwatchedButtonText: {
+    color: Colors.primary,
   },
-  seasonButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  secondaryButton: {
+    backgroundColor: Colors.surface,
+  },
+  secondaryButtonText: {
     color: Colors.text,
-    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
   },
   overview: {
     marginBottom: 24,

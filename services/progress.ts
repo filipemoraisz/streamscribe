@@ -52,8 +52,6 @@ class ProgressService {
             const queue: OfflineAction[] = JSON.parse(queueJson);
             if (queue.length === 0) return;
 
-            console.log(`Syncing ${queue.length} offline actions...`);
-
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -326,9 +324,17 @@ class ProgressService {
 
     async getAllShowsProgress(): Promise<ShowProgress[]> {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            // Prioritize local storage as it contains optimistic updates
+            const key = await this.getProgressKey('shows');
+            const json = await AsyncStorage.getItem(key);
 
-            // Try Supabase first if user is authenticated
+            if (json) {
+                const allShows: ShowProgress[] = JSON.parse(json);
+                return allShows;
+            }
+
+            // Fallback to Supabase if local is empty (e.g. first load on new device)
+            const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data, error } = await supabase
                     .from('show_progress')
@@ -336,17 +342,13 @@ class ProgressService {
                     .eq('user_id', user.id);
 
                 if (!error && data) {
+                    // Cache it locally for next time
+                    await AsyncStorage.setItem(key, JSON.stringify(data));
                     return data as ShowProgress[];
                 }
             }
 
-            // Fallback to local storage
-            const key = await this.getProgressKey('shows');
-            const json = await AsyncStorage.getItem(key);
-            if (!json) return [];
-
-            const allShows: ShowProgress[] = JSON.parse(json);
-            return allShows;
+            return [];
         } catch (error) {
             console.error('Error getting all shows progress:', error);
             return [];
@@ -368,6 +370,56 @@ class ProgressService {
         } catch (error) {
             console.error('Error getting season progress:', error);
             return { watched: 0, total: 0 };
+        }
+    }
+    async markEpisodesUpTo(showId: number, seasonNumber: number, episodeNumber: number): Promise<void> {
+        try {
+            // 1. Optimistic Update
+            const key = await this.getProgressKey('episodes');
+            const data = await AsyncStorage.getItem(key);
+            const allProgress: EpisodeProgress[] = data ? JSON.parse(data) : [];
+
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id || 'guest';
+            const now = new Date().toISOString();
+
+            // Filter out existing entries for this season that we are about to overwrite/add
+            // Actually, we want to keep entries for episodes > episodeNumber
+            const otherEpisodes = allProgress.filter(ep =>
+                !(ep.show_id === showId && ep.season_number === seasonNumber && ep.episode_number <= episodeNumber)
+            );
+
+            const newEntries: EpisodeProgress[] = [];
+            for (let i = 1; i <= episodeNumber; i++) {
+                newEntries.push({
+                    id: `${userId}-${showId}-${seasonNumber}-${i}`,
+                    user_id: userId,
+                    show_id: showId,
+                    season_number: seasonNumber,
+                    episode_number: i,
+                    watched: true,
+                    watched_date: now
+                });
+            }
+
+            const updatedProgress = [...otherEpisodes, ...newEntries];
+            await AsyncStorage.setItem(key, JSON.stringify(updatedProgress));
+            await this.updateShowProgressLocal(showId);
+
+            // 2. Queue for Sync (Bulk)
+            if (userId !== 'guest') {
+                // For simplicity, we'll just queue individual actions for now. 
+                // A better approach would be a bulk API endpoint.
+                for (let i = 1; i <= episodeNumber; i++) {
+                    await this.addToQueue({
+                        type: 'MARK_WATCHED',
+                        payload: { showId, seasonNumber, episodeNumber: i }
+                    });
+                }
+            }
+
+        } catch (error) {
+            console.error('Error marking episodes up to:', error);
         }
     }
 }

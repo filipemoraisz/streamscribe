@@ -1,14 +1,22 @@
+import { StreamingOptions } from '@/components/StreamingOptions';
+import { Colors } from '@/constants/Colors';
+import { progressService } from '@/services/progress';
+import { storageService } from '@/services/storage';
+import { tmdbService } from '@/services/tmdb';
+import { Movie, ShowProgress, StreamingOption, TVShow, TVShowDetails } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { StreamingOptions } from '../../../components/StreamingOptions';
-import { Colors } from '../../../constants/Colors';
-import { progressService } from '../../../services/progress';
-import { storageService } from '../../../services/storage';
-
-import { tmdbService } from '../../../services/tmdb';
-import { Movie, ShowProgress, StreamingOption, TVShow, TVShowDetails } from '../../../types';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -17,10 +25,10 @@ export default function DetailsScreen() {
   const [item, setItem] = useState<Movie | TVShow | TVShowDetails | null>(null);
   const [streamingOptions, setStreamingOptions] = useState<StreamingOption[]>([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [movieWatched, setMovieWatched] = useState(false);
   const [showProgress, setShowProgress] = useState<ShowProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -51,11 +59,16 @@ export default function DetailsScreen() {
 
     const checkWatchlistStatus = async () => {
       try {
-        const inWatchlist = await storageService.isInWatchlist(
-          parseInt(id as string),
-          type as 'movie' | 'tv'
-        );
+        const itemId = parseInt(id as string);
+        const itemType = type as 'movie' | 'tv';
+        const inWatchlist = await storageService.isInWatchlist(itemId, itemType);
         setIsInWatchlist(inWatchlist);
+
+        if (itemType === 'movie') {
+          const watchlist = await storageService.getWatchlist();
+          const watchlistItem = watchlist.find(w => w.id === itemId && w.type === 'movie');
+          setMovieWatched(watchlistItem?.watched || false);
+        }
       } catch (error) {
         console.error('Error checking watchlist status:', error);
       }
@@ -91,6 +104,7 @@ export default function DetailsScreen() {
       if (isInWatchlist) {
         await storageService.removeFromWatchlist(itemId, itemType);
         setIsInWatchlist(false);
+        if (itemType === 'movie') setMovieWatched(false);
       } else {
         await storageService.addToWatchlist({
           id: itemId,
@@ -108,19 +122,43 @@ export default function DetailsScreen() {
     }
   };
 
+  const handleMarkMovieWatched = async () => {
+    if (!item || type !== 'movie') return;
+
+    try {
+      const itemId = parseInt(id as string);
+      const title = 'title' in item ? item.title : item.name;
+      const releaseDate = 'title' in item ? item.release_date : item.first_air_date;
+
+      if (movieWatched) {
+        // Toggle off - just update local state, actual toggle logic in storage service handles status
+        await storageService.toggleWatched(itemId, 'movie');
+        setMovieWatched(false);
+      } else {
+        await storageService.markAsWatched({
+          id: itemId,
+          type: 'movie',
+          title,
+          poster_path: item.poster_path,
+          release_date: releaseDate,
+          vote_average: item.vote_average,
+        });
+        setMovieWatched(true);
+        setIsInWatchlist(true);
+      }
+    } catch (error) {
+      console.error('Error marking movie as watched:', error);
+    }
+  };
+
   const handleStartWatching = async () => {
     if (!item || type !== 'tv') return;
 
     try {
       const itemId = parseInt(id as string);
-      // Mark the first episode of the first season as watched to start tracking
+      // Mark S1E1 as watched
       await progressService.markEpisodeWatched(itemId, 1, 1);
-
-      // Reload progress to update the UI
-      const progress = await progressService.getShowProgress(itemId);
-      setShowProgress(progress);
-
-      // Navigate to the first season
+      // Navigate to season 1
       router.push(`/season/${itemId}/1`);
     } catch (error) {
       console.error('Error starting to watch:', error);
@@ -132,42 +170,6 @@ export default function DetailsScreen() {
     router.push(`/season/${showProgress.show_id}/${showProgress.current_season}`);
   };
 
-  const onRefresh = async () => {
-    if (!type || !id) return;
-
-    setIsRefreshing(true);
-    try {
-      const itemId = parseInt(id as string);
-
-      // Reload details
-      let details;
-      if (type === 'movie') {
-        details = await tmdbService.getMovieDetails(itemId);
-      } else {
-        details = await tmdbService.getTVShowDetails(itemId);
-      }
-      setItem(details);
-
-      // Reload streaming options
-      const options = await tmdbService.getWatchProviders(itemId, type as 'movie' | 'tv');
-      setStreamingOptions(options);
-
-      // Reload watchlist status
-      const inWatchlist = await storageService.isInWatchlist(itemId, type as 'movie' | 'tv');
-      setIsInWatchlist(inWatchlist);
-
-      // Reload show progress if TV show
-      if (type === 'tv') {
-        const progress = await progressService.getShowProgress(itemId);
-        setShowProgress(progress);
-      }
-    } catch (error) {
-      console.error('Error refreshing details:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -177,56 +179,11 @@ export default function DetailsScreen() {
     );
   }
 
-  if (error) {
+  if (error || !item) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => {
-            if (type && id) {
-              const loadDetails = async () => {
-                try {
-                  setLoading(true);
-                  setError(null);
-                  const itemId = parseInt(id as string);
-
-                  let details;
-                  if (type === 'movie') {
-                    details = await tmdbService.getMovieDetails(itemId);
-                  } else {
-                    details = await tmdbService.getTVShowDetails(itemId);
-                  }
-
-                  setItem(details);
-
-                  const options = await tmdbService.getWatchProviders(itemId, type as 'movie' | 'tv');
-                  setStreamingOptions(options);
-                } catch (error) {
-                  console.error('Error loading details:', error);
-                  setError('Failed to load details. Please check your internet connection and try again.');
-                } finally {
-                  setLoading(false);
-                }
-              };
-              loadDetails();
-            }
-          }}
-        >
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (!item) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Content not found</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => router.back()}
-        >
+        <Text style={styles.errorText}>{error || 'Content not found'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
           <Text style={styles.retryButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -277,41 +234,68 @@ export default function DetailsScreen() {
               </View>
 
               <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                  style={[styles.watchlistButton, isInWatchlist && styles.watchlistButtonActive]}
-                  onPress={handleWatchlistPress}
-                >
-                  <Ionicons
-                    name={isInWatchlist ? "bookmark" : "bookmark-outline"}
-                    size={20}
-                    color={Colors.text}
-                  />
-                  <Text style={styles.watchlistButtonText}>
-                    {isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
-                  </Text>
-                </TouchableOpacity>
+                {type === 'movie' && (
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryButton,
+                      movieWatched && styles.watchedButton
+                    ]}
+                    onPress={handleMarkMovieWatched}
+                  >
+                    <Ionicons
+                      name={movieWatched ? "checkmark-circle" : "checkmark-circle-outline"}
+                      size={20}
+                      color={Colors.text}
+                    />
+                    <Text style={styles.primaryButtonText}>
+                      {movieWatched ? 'Watched' : 'Mark as Watched'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
                 {type === 'tv' && !showProgress && (
                   <TouchableOpacity
-                    style={styles.startWatchingButton}
+                    style={styles.primaryButton}
                     onPress={handleStartWatching}
                   >
                     <Ionicons name="play" size={20} color={Colors.text} />
-                    <Text style={styles.startWatchingButtonText}>Start Watching</Text>
+                    <Text style={styles.primaryButtonText}>Start Watching</Text>
                   </TouchableOpacity>
                 )}
 
                 {type === 'tv' && showProgress && (
                   <TouchableOpacity
-                    style={styles.continueWatchingButton}
+                    style={styles.primaryButton}
                     onPress={handleContinueWatching}
                   >
                     <Ionicons name="play" size={20} color={Colors.text} />
-                    <Text style={styles.continueWatchingButtonText}>
-                      Continue S{showProgress.current_season}E{showProgress.current_episode}
+                    <Text style={styles.primaryButtonText}>
+                      Continue S{showProgress.current_season} E{showProgress.current_episode}
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryButton,
+                    isInWatchlist && styles.secondaryButtonActive,
+                  ]}
+                  onPress={handleWatchlistPress}
+                >
+                  <Ionicons
+                    name={isInWatchlist ? "bookmark" : "bookmark-outline"}
+                    size={20}
+                    color={isInWatchlist ? Colors.primary : Colors.text}
+                  />
+                  <Text
+                    style={[
+                      styles.secondaryButtonText,
+                      isInWatchlist && styles.secondaryButtonTextActive,
+                    ]}
+                  >
+                    {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -337,7 +321,7 @@ export default function DetailsScreen() {
                 </View>
               )}
               {(item as TVShowDetails).seasons
-                .filter(season => season.season_number > 0) // Filter out specials
+                .filter(season => season.season_number > 0)
                 .map((season) => (
                   <TouchableOpacity
                     key={season.id}
@@ -478,56 +462,49 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginLeft: 4,
   },
-  watchlistButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  watchlistButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  watchlistButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginLeft: 8,
-  },
   buttonContainer: {
     gap: 12,
   },
-  startWatchingButton: {
+  primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
+    gap: 8,
   },
-  startWatchingButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  watchedButton: {
+    backgroundColor: Colors.success,
+  },
+  primaryButtonText: {
     color: Colors.text,
-    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
   },
-  continueWatchingButton: {
+  secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.success,
-    paddingHorizontal: 16,
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
   },
-  continueWatchingButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  secondaryButtonActive: {
+    borderColor: Colors.primary,
+  },
+  secondaryButtonText: {
     color: Colors.text,
-    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButtonTextActive: {
+    color: Colors.primary,
   },
   overview: {
     marginBottom: 24,
