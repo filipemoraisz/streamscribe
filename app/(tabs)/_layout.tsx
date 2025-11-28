@@ -1,24 +1,9 @@
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { DynamicColorIOS, View, StyleSheet } from 'react-native';
-import { ConnectionStatusIndicator } from '../../components/ConnectionStatusIndicator';
-import { useRealTimeStatus } from '../../components/hooks/useRealTimeStatus';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
-  const realTimeStatus = useRealTimeStatus();
-  const insets = useSafeAreaInsets();
-
   return (
     <View style={styles.container}>
-      {/* Connection Status Header */}
-      <View style={[styles.statusHeader, { paddingTop: insets.top }]}>
-        <ConnectionStatusIndicator
-          isConnected={realTimeStatus.isConnected}
-          isConnecting={realTimeStatus.isConnecting}
-          showLabel={true}
-        />
-      </View>
-
       <NativeTabs
         labelStyle={{
           color: DynamicColorIOS({
@@ -59,12 +44,5 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  statusHeader: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    zIndex: 1000,
-    backgroundColor: 'transparent',
   },
 });

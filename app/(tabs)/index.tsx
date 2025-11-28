@@ -24,6 +24,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NotificationBadge } from '@/components/NotificationBadge';
@@ -50,6 +51,7 @@ export default function HomeScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
 
 
@@ -256,15 +258,32 @@ export default function HomeScreen() {
           />
         </View>
         
-        <TouchableOpacity 
-          style={styles.notificationButton}
-          onPress={() => router.push('/notifications')}
-        >
-          <Ionicons name="notifications" size={24} color={Colors.text} />
-          <View style={styles.badgeContainer}>
-            <NotificationBadge count={unreadNotifications} size="small" />
-          </View>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {/* Compact Sync Status Icon */}
+          <TouchableOpacity 
+            style={styles.syncButton}
+            onPress={() => setShowSyncModal(true)}
+          >
+            <SyncStatusIndicator
+              isConnected={realTimeStatus.isConnected}
+              isProcessing={realTimeStatus.isConnecting}
+              pendingActions={realTimeStatus.pendingActions}
+              lastSyncTime={realTimeStatus.lastSyncTime}
+              compact={true}
+            />
+          </TouchableOpacity>
+          
+          {/* Notification Button */}
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications" size={24} color={Colors.text} />
+            <View style={styles.badgeContainer}>
+              <NotificationBadge count={unreadNotifications} size="small" />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ImpactHeader
@@ -273,13 +292,7 @@ export default function HomeScreen() {
         streak={stats.streak}
       />
 
-      {/* Sync Status */}
-      <SyncStatusIndicator
-        isConnected={realTimeStatus.isConnected}
-        isProcessing={realTimeStatus.isConnecting}
-        pendingActions={realTimeStatus.pendingActions}
-        lastSyncTime={realTimeStatus.lastSyncTime}
-      />
+
 
       {watchlist.length > 0 && (
         <MediaSection
@@ -311,6 +324,51 @@ export default function HomeScreen() {
           isInWatchlist={(id) => isInWatchlist(id, section.type)}
         />
       ))}
+
+      {/* Sync Status Modal */}
+      <Modal
+        visible={showSyncModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSyncModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSyncModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sync Status</Text>
+              <TouchableOpacity onPress={() => setShowSyncModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <SyncStatusIndicator
+              isConnected={realTimeStatus.isConnected}
+              isProcessing={realTimeStatus.isConnecting}
+              pendingActions={realTimeStatus.pendingActions}
+              lastSyncTime={realTimeStatus.lastSyncTime}
+              compact={false}
+            />
+            
+            <View style={styles.syncDetails}>
+              <Text style={styles.detailText}>
+                Connection: {realTimeStatus.isConnected ? 'Online' : 'Offline'}
+              </Text>
+              <Text style={styles.detailText}>
+                Pending Actions: {realTimeStatus.pendingActions}
+              </Text>
+              {realTimeStatus.lastSyncTime && (
+                <Text style={styles.detailText}>
+                  Last Sync: {new Date(realTimeStatus.lastSyncTime).toLocaleString()}
+                </Text>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -343,6 +401,14 @@ const styles = StyleSheet.create({
     height: 30,
     marginTop: 4,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  syncButton: {
+    padding: 8,
+  },
   notificationButton: {
     position: 'relative',
     padding: 8,
@@ -351,5 +417,41 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     right: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: Colors.card,
+    borderRadius: 12,
+    padding: 20,
+    margin: 20,
+    minWidth: 300,
+    maxWidth: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  syncDetails: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  detailText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 8,
   },
 });
