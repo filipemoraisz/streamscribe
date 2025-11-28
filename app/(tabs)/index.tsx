@@ -127,62 +127,83 @@ export default function HomeScreen() {
     router.push(`/details/${type}/${item.id}`);
   };
 
-  //const handleNextEpisodePress = (item: TVShow, season: number, episode: number) => {
-  //router.push(`/episode/${item.id}/${season}/${episode}`);
-  //};
+  const isInWatchlist = (id: number, type: 'movie' | 'tv') => {
+    return watchlist.some((item) => item.id === id && item.type === type);
+  };
+
   const handleNextEpisodePress = async (item: TVShow, season: number, episode: number) => {
     try {
-      const nextEpisode = await progressService.getNextEpisodeToWatch(item.id);
+      // Optimistic update: Update next episode locally immediately
+      const currentNext = nextEpisodes[item.id];
+      if (currentNext) {
+        setNextEpisodes(prev => ({
+          ...prev,
+          [item.id]: { season: currentNext.season, episode: currentNext.episode + 1 }
+        }));
+      }
 
-      if (!nextEpisode) {
-        Alert.alert("No episodes available", "There are no new episodes to watch for this show.");
-        return;
-      }
-      if (nextEpisode.air_date && !progressService.isEpisodeAired(nextEpisode.air_date)) {
-        Alert.alert("Oops...", "Nice try but you'll need to wait for this!");
-        return;
-      }
-      router.push(`/episode/${item.id}/${season}/${episode}`);
+      // Mark as watched in background
+      await progressService.markEpisodeWatched(item.id, season, episode);
+
+      // Refresh data silently to ensure consistency
+      await fetchUserData();
     } catch (error) {
-      console.error('Error checking episode:', error);
-      Alert.alert("Error", "Failed to check episode availability. Please try again.");
+      console.error('Error marking episode watched:', error);
+      Alert.alert("Error", "Failed to mark episode as watched. Please try again.");
+      fetchUserData();
     }
   };
 
   const handleWatchlistPress = async (item: Movie | TVShow, type: 'movie' | 'tv') => {
-    if (isInWatchlist(item.id, type)) {
-      await storageService.removeFromWatchlist(item.id, type);
+    // Optimistic update
+    const isCurrentlyInWatchlist = isInWatchlist(item.id, type);
+
+    if (isCurrentlyInWatchlist) {
+      setWatchlist(prev => prev.filter(w => !(w.id === item.id && w.type === type)));
+      storageService.removeFromWatchlist(item.id, type).catch(err => {
+        console.error('Error removing from watchlist:', err);
+        fetchUserData(); // Revert on error
+      });
     } else {
-      await storageService.addToWatchlist({
+      const newItem: WatchlistItem = {
         id: item.id,
         type,
         title: 'title' in item ? item.title : item.name,
         poster_path: item.poster_path,
         vote_average: item.vote_average,
         release_date: 'release_date' in item ? item.release_date : item.first_air_date,
+        added_date: new Date().toISOString(),
+        watched: false
+      };
+      setWatchlist(prev => [...prev, newItem]);
+      storageService.addToWatchlist(newItem).catch(err => {
+        console.error('Error adding to watchlist:', err);
+        fetchUserData(); // Revert on error
       });
     }
-    // Refresh user data immediately
-    await fetchUserData();
   };
 
   const handleMovieActionPress = async (item: Movie) => {
-    // Mark as watched
-    await storageService.markAsWatched({
+    // Optimistic update: Mark as watched locally
+    setWatchlist(prev => prev.map(w =>
+      w.id === item.id && w.type === 'movie' ? { ...w, watched: true } : w
+    ));
+
+    // Mark as watched in background
+    storageService.markAsWatched({
       id: item.id,
       type: 'movie',
       title: item.title,
       poster_path: item.poster_path,
       vote_average: item.vote_average,
       release_date: item.release_date,
+    }).then(() => {
+      // Refresh user data silently to ensure consistency
+      fetchUserData();
+    }).catch(err => {
+      console.error('Error marking movie as watched:', err);
+      fetchUserData(); // Revert on error
     });
-
-    // Refresh user data immediately
-    await fetchUserData();
-  };
-
-  const isInWatchlist = (id: number, type: 'movie' | 'tv') => {
-    return watchlist.some((item) => item.id === id && item.type === type);
   };
 
   if (loading && !refreshing) {

@@ -80,18 +80,6 @@ class StorageService {
               .eq('media_type', type);
           } else if (action.type === 'TOGGLE_WATCHED') {
             const { id, type } = action.payload;
-            // We need to know the current status to toggle it on server, 
-            // but for simplicity/robustness we might just want to set it explicitly.
-            // However, the queue action doesn't have the new state.
-            // Let's fetch the local item to see what the *intended* state is.
-            // OR, better: The action payload should probably contain the target state.
-            // For now, let's just re-fetch the item from Supabase and toggle it there? 
-            // No, that defeats the purpose of offline sync if we need to read first.
-            // Ideally 'TOGGLE' is risky in a queue. 'SET_STATUS' is better.
-            // Given the current architecture, let's try to infer or just skip if complex.
-            // Actually, let's look at how we use it. We toggle locally first.
-            // So we can check our local state to see what we expect the server to be.
-
             const key = await this.getWatchlistKey();
             const localData = await AsyncStorage.getItem(key);
             const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
@@ -157,16 +145,10 @@ class StorageService {
       if (!userId) return;
 
       // Process queue first!
-      // We already call syncPendingActions in constructor and after every action.
-      // But let's make sure we don't overwrite local changes with old server data.
-      // If queue is not empty, we should probably NOT pull from server yet, 
-      // or be very careful.
       const queueJson = await AsyncStorage.getItem(this.QUEUE_KEY);
       const queue: WatchlistAction[] = queueJson ? JSON.parse(queueJson) : [];
       if (queue.length > 0) {
-        // Try to clear queue first
         await this.syncPendingActions();
-        // If queue still has items, abort sync to protect local changes
         const remainingQueueJson = await AsyncStorage.getItem(this.QUEUE_KEY);
         const remainingQueue = remainingQueueJson ? JSON.parse(remainingQueueJson) : [];
         if (remainingQueue.length > 0) return;
@@ -338,56 +320,35 @@ class StorageService {
   }
 
   async markAsWatched(item: Omit<WatchlistItem, 'added_date' | 'watched'>): Promise<void> {
+    if (item.type === 'tv') {
+      console.warn('markAsWatched is not supported for TV shows in storageService. Use progressService instead.');
+      return;
+    }
+
     try {
       // 1. Optimistic Update
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
       const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
 
-      const existingItem = watchlist.find(w => w.id === item.id && w.type === item.type);
-
-      if (existingItem) {
-        if (!existingItem.watched) {
-          existingItem.watched = true;
-          await AsyncStorage.setItem(key, JSON.stringify(watchlist));
-
-          const userId = await this.getUserId();
-          if (userId) {
-            await this.addToQueue({
-              type: 'MARK_WATCHED',
-              payload: { id: item.id, type: item.type }
-            });
-          }
+      const updatedWatchlist = watchlist.map(w => {
+        if (w.id === item.id && w.type === item.type) {
+          return { ...w, watched: true };
         }
-      } else {
-        // Add new item as watched
-        const newItem: WatchlistItem = {
-          ...item,
-          added_date: new Date().toISOString(),
-          watched: true,
-        };
-        watchlist.push(newItem);
-        await AsyncStorage.setItem(key, JSON.stringify(watchlist));
+        return w;
+      });
 
-        const userId = await this.getUserId();
-        if (userId) {
-          // This is complex: Insert AND Mark Watched. 
-          // For simplicity, let's just insert as completed.
-          // But our queue actions are separate.
-          // Let's just do ADD first, then MARK_WATCHED?
-          // Or just insert directly to Supabase if online?
-          // No, stick to queue.
-          // We can add a 'ADD_WATCHED' action type or just queue two actions.
-          await this.addToQueue({
-            type: 'ADD',
-            payload: item
-          });
-          await this.addToQueue({
-            type: 'MARK_WATCHED',
-            payload: { id: item.id, type: item.type }
-          });
-        }
+      await AsyncStorage.setItem(key, JSON.stringify(updatedWatchlist));
+
+      // 2. Queue for Sync
+      const userId = await this.getUserId();
+      if (userId) {
+        await this.addToQueue({
+          type: 'MARK_WATCHED',
+          payload: { id: item.id, type: item.type }
+        });
       }
+
     } catch (error) {
       console.error('Error marking as watched:', error);
     }
