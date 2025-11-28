@@ -71,6 +71,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             <WatchlistActionButton
               onPress={onMovieActionPress}
               style={styles.indicator}
+              icon="eye"
             />
           )}
         </View>

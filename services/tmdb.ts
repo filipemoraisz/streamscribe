@@ -280,7 +280,33 @@ class TMDBService {
   }
 
   async getTVShowDetails(tvId: number): Promise<TVShowDetails> {
-    return this.fetchFromTMDB(`/tv/${tvId}`);
+    try {
+      const CACHE_KEY = `tmdb_tv_details_${tvId}`;
+      const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+      // Check cache
+      const cached = await import('@react-native-async-storage/async-storage').then(m => m.default.getItem(CACHE_KEY));
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          return data;
+        }
+      }
+
+      // Fetch fresh
+      const data = await this.fetchFromTMDB(`/tv/${tvId}`);
+
+      // Save to cache
+      await import('@react-native-async-storage/async-storage').then(m => m.default.setItem(CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      })));
+
+      return data;
+    } catch (error) {
+      console.warn('Error fetching TV details, falling back to network/mock:', error);
+      return this.fetchFromTMDB(`/tv/${tvId}`);
+    }
   }
 
   async getSeasonDetails(tvId: number, seasonNumber: number): Promise<Season> {

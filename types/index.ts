@@ -162,7 +162,7 @@ export interface ShowProgress {
   current_episode: number;
   total_watched_episodes: number;
   last_watched_date: string;
-  status: 'watching' | 'completed' | 'dropped' | 'plan_to_watch';
+  status: 'watching' | 'completed' | 'dropped' | 'plan_to_watch' | 'up_to_date';
 }
 
 export interface UserPreferences {

@@ -26,6 +26,8 @@ export default function WatchlistScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [nextEpisodes, setNextEpisodes] = useState<Record<number, { season: number; episode: number }>>({});
+
   // Refs to track current state for use inside callbacks (avoiding stale closures)
   const watchlistRef = useRef(watchlist);
   const showProgressRef = useRef(showProgress);
@@ -72,6 +74,18 @@ export default function WatchlistScreen() {
         setShowProgress(progressMap);
       }
 
+      // Fetch next episodes for TV shows
+      const nextEps: Record<number, { season: number; episode: number }> = {};
+      const tvWatchlist = items.filter(item => item.type === 'tv');
+
+      await Promise.all(tvWatchlist.map(async (item) => {
+        const nextEpisode = await progressService.getNextEpisodeToWatch(item.id);
+        if (nextEpisode && nextEpisode.season_number && nextEpisode.episode_number) {
+          nextEps[item.id] = { season: nextEpisode.season_number, episode: nextEpisode.episode_number };
+        }
+      }));
+      setNextEpisodes(nextEps);
+
     } catch (error) {
       console.error('Error loading watchlist:', error);
       setError('Failed to load your watchlist. Please try again.');
@@ -101,12 +115,45 @@ export default function WatchlistScreen() {
     }
   };
 
-  const handleToggleWatched = async (item: WatchlistItem) => {
+  const handleQuickMarkEpisode = async (item: WatchlistItem, season: number, episode: number) => {
     try {
+      // Optimistic update: Update next episode locally immediately
+      const currentNext = nextEpisodes[item.id];
+      if (currentNext) {
+        setNextEpisodes(prev => ({
+          ...prev,
+          [item.id]: { season: currentNext.season, episode: currentNext.episode + 1 }
+        }));
+      }
+
+      // Mark as watched in background
+      await progressService.markEpisodeWatched(item.id, season, episode);
+
+      // Refresh data silently to ensure consistency
+      await loadWatchlist(false);
+    } catch (error) {
+      console.error('Error marking episode watched:', error);
+      // Revert on error (optional, but good practice)
+      loadWatchlist(false);
+    }
+  };
+
+  const handleQuickMarkMovie = async (item: WatchlistItem) => {
+    try {
+      // Optimistic update: Remove from list if filtering by active/unwatched
+      if (filter === 'active' || filter === 'movies') {
+        // We could filter it out locally, but for now let's just trigger the background update
+        // and let the list refresh naturally. To make it instant, we'd need to update 'watchlist' state.
+        // Let's update local state to reflect 'watched' status immediately
+        setWatchlist(prev => prev.map(i =>
+          i.id === item.id && i.type === 'movie' ? { ...i, watched: true } : i
+        ));
+      }
+
       await storageService.toggleWatched(item.id, item.type);
       await loadWatchlist(false);
     } catch (error) {
-      console.error('Error toggling watched status:', error);
+      console.error('Error toggling movie watched:', error);
     }
   };
 
@@ -219,6 +266,8 @@ export default function WatchlistScreen() {
       origin_country: [],
     };
 
+    const nextEpisode = item.type === 'tv' ? nextEpisodes[item.id] : undefined;
+
     return (
       <View style={[styles.cardContainer, { width: itemWidth }]}>
         <View>
@@ -229,22 +278,21 @@ export default function WatchlistScreen() {
             onWatchlistPress={() => handleWatchlistPress(item)}
             isInWatchlist={true}
             style={{ width: '100%' }}
+            nextEpisode={nextEpisode}
+            onNextEpisodePress={
+              item.type === 'tv' && nextEpisode
+                ? () => handleQuickMarkEpisode(item, nextEpisode.season, nextEpisode.episode)
+                : undefined
+            }
+            onMovieActionPress={
+              item.type === 'movie'
+                ? () => handleQuickMarkMovie(item)
+                : undefined
+            }
           />
           <View style={styles.badgeContainer}>
             {renderStatusBadge(item)}
           </View>
-
-          {/* Quick Action Overlay */}
-          <TouchableOpacity
-            style={[styles.quickAction, item.watched && styles.quickActionActive]}
-            onPress={() => handleToggleWatched(item)}
-          >
-            <Ionicons
-              name={item.watched ? "checkmark" : "add"}
-              size={16}
-              color={item.watched ? "#FFF" : Colors.text}
-            />
-          </TouchableOpacity>
         </View>
       </View>
     );
@@ -408,25 +456,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 10,
     fontWeight: 'bold',
-  },
-  quickAction: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  quickActionActive: {
-    backgroundColor: Colors.success,
   },
 });

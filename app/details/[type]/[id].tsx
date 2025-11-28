@@ -9,6 +9,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   ScrollView,
@@ -253,26 +254,96 @@ export default function DetailsScreen() {
                   </TouchableOpacity>
                 )}
 
-                {type === 'tv' && !showProgress && (
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={handleStartWatching}
-                  >
-                    <Ionicons name="play" size={20} color={Colors.text} />
-                    <Text style={styles.primaryButtonText}>Start Watching</Text>
-                  </TouchableOpacity>
-                )}
+                {type === 'tv' && (
+                  <View style={styles.trackRow}>
+                    <TouchableOpacity
+                      style={[styles.primaryButton, styles.trackButton]}
+                      onPress={() => {
+                        if (!showProgress) {
+                          handleStartWatching();
+                          return;
+                        }
 
-                {type === 'tv' && showProgress && (
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={handleContinueWatching}
-                  >
-                    <Ionicons name="play" size={20} color={Colors.text} />
-                    <Text style={styles.primaryButtonText}>
-                      Continue S{showProgress.current_season} E{showProgress.current_episode}
-                    </Text>
-                  </TouchableOpacity>
+                        // Determine target season
+                        let targetSeason = showProgress.current_season;
+                        if (item && 'seasons' in item) {
+                          const currentSeasonData = item.seasons.find(s => s.season_number === showProgress.current_season);
+                          if (currentSeasonData && showProgress.current_episode >= currentSeasonData.episode_count) {
+                            // Current season finished, check for next
+                            const nextSeason = item.seasons.find(s => s.season_number > showProgress.current_season);
+                            if (nextSeason) {
+                              targetSeason = nextSeason.season_number;
+                            }
+                          }
+                        }
+
+                        router.push(`/season/${showProgress.show_id}/${targetSeason}`);
+                      }}
+                    >
+                      <Ionicons name="list" size={20} color={Colors.text} />
+                      <Text style={styles.primaryButtonText}>
+                        {(() => {
+                          if (!showProgress) return 'Start Watching';
+
+                          if (item && 'seasons' in item) {
+                            const currentSeasonData = item.seasons.find(s => s.season_number === showProgress.current_season);
+                            if (currentSeasonData && showProgress.current_episode >= currentSeasonData.episode_count) {
+                              const nextSeason = item.seasons.find(s => s.season_number > showProgress.current_season);
+                              if (nextSeason) {
+                                return `Start Season ${nextSeason.season_number}`;
+                              }
+                              return 'Completed'; // Or keep showing current season if no next
+                            }
+                          }
+                          return `Season ${showProgress.current_season}`;
+                        })()}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Quick Mark Button */}
+                    {showProgress && (
+                      <TouchableOpacity
+                        style={styles.quickMarkButton}
+                        onPress={async () => {
+                          if (!showProgress || !item || !('seasons' in item)) return;
+
+                          const nextEpisode = await progressService.getNextEpisodeToWatch(parseInt(id as string));
+
+                          if (!nextEpisode) {
+                            Alert.alert('All Caught Up', 'You have watched all available episodes!');
+                            return;
+                          }
+
+                          // Check if the next episode has aired
+                          if (nextEpisode.air_date) {
+                            const airDate = new Date(nextEpisode.air_date);
+                            const now = new Date();
+                            airDate.setHours(0, 0, 0, 0);
+                            now.setHours(0, 0, 0, 0);
+
+                            if (airDate > now) {
+                              Alert.alert("Oops...", "Nice try but you'll need to wait for this!");
+                              return;
+                            }
+                          }
+                          try {
+                            await progressService.markEpisodeWatched(
+                              showProgress.show_id,
+                              nextEpisode.season_number,
+                              nextEpisode.episode_number
+                            );
+                            // Refresh progress
+                            const progress = await progressService.getShowProgress(parseInt(id as string));
+                            setShowProgress(progress);
+                          } catch (error) {
+                            console.error('Error quick marking episode:', error);
+                          }
+                        }}
+                      >
+                        <Ionicons name="checkmark" size={24} color={Colors.text} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
 
                 <TouchableOpacity
@@ -588,5 +659,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 18,
+  },
+  trackRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  trackButton: {
+    flex: 1,
+  },
+  quickMarkButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

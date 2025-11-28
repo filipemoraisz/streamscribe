@@ -1,9 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { WatchlistItem } from '../types';
 import { supabase } from './supabase';
 import { tmdbService } from './tmdb';
 
+type WatchlistAction =
+  | { type: 'ADD'; payload: Omit<WatchlistItem, 'added_date' | 'watched'> }
+  | { type: 'REMOVE'; payload: { id: number; type: 'movie' | 'tv' } }
+  | { type: 'TOGGLE_WATCHED'; payload: { id: number; type: 'movie' | 'tv' } }
+  | { type: 'MARK_WATCHED'; payload: { id: number; type: 'movie' | 'tv' } };
+
 class StorageService {
+  private readonly QUEUE_KEY = 'streamscribe_watchlist_queue';
+
+  constructor() {
+    // Attempt to sync on startup
+    this.syncPendingActions();
+  }
+
   private async getUserId(): Promise<string | null> {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.user?.id || null;
@@ -13,6 +27,113 @@ class StorageService {
     const userId = await this.getUserId();
     return userId ? `streamscribe_watchlist_${userId}` : 'streamscribe_watchlist_guest';
   }
+
+  // --- Offline Queue Management ---
+
+  private async addToQueue(action: WatchlistAction): Promise<void> {
+    try {
+      const queueJson = await AsyncStorage.getItem(this.QUEUE_KEY);
+      const queue: WatchlistAction[] = queueJson ? JSON.parse(queueJson) : [];
+      queue.push(action);
+      await AsyncStorage.setItem(this.QUEUE_KEY, JSON.stringify(queue));
+
+      // Try to sync immediately
+      this.syncPendingActions();
+    } catch (error) {
+      console.error('Error adding to watchlist queue:', error);
+    }
+  }
+
+  async syncPendingActions(): Promise<void> {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) return;
+
+    try {
+      const queueJson = await AsyncStorage.getItem(this.QUEUE_KEY);
+      if (!queueJson) return;
+
+      const queue: WatchlistAction[] = JSON.parse(queueJson);
+      if (queue.length === 0) return;
+
+      const userId = await this.getUserId();
+      if (!userId) return;
+
+      const remainingQueue: WatchlistAction[] = [];
+
+      for (const action of queue) {
+        try {
+          if (action.type === 'ADD') {
+            const item = action.payload;
+            await supabase.from('watchlists').insert({
+              user_id: userId,
+              tmdb_id: item.id,
+              media_type: item.type,
+              status: 'plan_to_watch',
+            });
+          } else if (action.type === 'REMOVE') {
+            const { id, type } = action.payload;
+            await supabase
+              .from('watchlists')
+              .delete()
+              .eq('user_id', userId)
+              .eq('tmdb_id', id)
+              .eq('media_type', type);
+          } else if (action.type === 'TOGGLE_WATCHED') {
+            const { id, type } = action.payload;
+            // We need to know the current status to toggle it on server, 
+            // but for simplicity/robustness we might just want to set it explicitly.
+            // However, the queue action doesn't have the new state.
+            // Let's fetch the local item to see what the *intended* state is.
+            // OR, better: The action payload should probably contain the target state.
+            // For now, let's just re-fetch the item from Supabase and toggle it there? 
+            // No, that defeats the purpose of offline sync if we need to read first.
+            // Ideally 'TOGGLE' is risky in a queue. 'SET_STATUS' is better.
+            // Given the current architecture, let's try to infer or just skip if complex.
+            // Actually, let's look at how we use it. We toggle locally first.
+            // So we can check our local state to see what we expect the server to be.
+
+            const key = await this.getWatchlistKey();
+            const localData = await AsyncStorage.getItem(key);
+            const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
+            const item = watchlist.find(w => w.id === id && w.type === type);
+
+            if (item) {
+              await supabase
+                .from('watchlists')
+                .update({ status: item.watched ? 'completed' : 'plan_to_watch' })
+                .eq('user_id', userId)
+                .eq('tmdb_id', id)
+                .eq('media_type', type);
+            }
+
+          } else if (action.type === 'MARK_WATCHED') {
+            const { id, type } = action.payload;
+            await supabase
+              .from('watchlists')
+              .update({ status: 'completed' })
+              .eq('user_id', userId)
+              .eq('tmdb_id', id)
+              .eq('media_type', type);
+          }
+        } catch (err) {
+          console.error('Failed to sync watchlist action:', action, err);
+          remainingQueue.push(action);
+        }
+      }
+
+      await AsyncStorage.setItem(this.QUEUE_KEY, JSON.stringify(remainingQueue));
+
+      // Sync full list after processing queue to ensure consistency
+      if (remainingQueue.length === 0) {
+        await this.syncWatchlist();
+      }
+
+    } catch (error) {
+      console.error('Error syncing pending watchlist actions:', error);
+    }
+  }
+
+  // --- Public Methods ---
 
   async getWatchlist(): Promise<WatchlistItem[]> {
     try {
@@ -34,6 +155,22 @@ class StorageService {
     try {
       const userId = await this.getUserId();
       if (!userId) return;
+
+      // Process queue first!
+      // We already call syncPendingActions in constructor and after every action.
+      // But let's make sure we don't overwrite local changes with old server data.
+      // If queue is not empty, we should probably NOT pull from server yet, 
+      // or be very careful.
+      const queueJson = await AsyncStorage.getItem(this.QUEUE_KEY);
+      const queue: WatchlistAction[] = queueJson ? JSON.parse(queueJson) : [];
+      if (queue.length > 0) {
+        // Try to clear queue first
+        await this.syncPendingActions();
+        // If queue still has items, abort sync to protect local changes
+        const remainingQueueJson = await AsyncStorage.getItem(this.QUEUE_KEY);
+        const remainingQueue = remainingQueueJson ? JSON.parse(remainingQueueJson) : [];
+        if (remainingQueue.length > 0) return;
+      }
 
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
@@ -91,7 +228,7 @@ class StorageService {
 
   async addToWatchlist(item: Omit<WatchlistItem, 'added_date' | 'watched'>): Promise<void> {
     try {
-      // Get current list directly from storage to avoid circular sync calls
+      // 1. Optimistic Update
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
       const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
@@ -107,14 +244,12 @@ class StorageService {
         watchlist.push(newItem);
         await AsyncStorage.setItem(key, JSON.stringify(watchlist));
 
-        // Sync to Supabase if logged in
+        // 2. Queue for Sync
         const userId = await this.getUserId();
         if (userId) {
-          await supabase.from('watchlists').insert({
-            user_id: userId,
-            tmdb_id: item.id,
-            media_type: item.type,
-            status: 'plan_to_watch',
+          await this.addToQueue({
+            type: 'ADD',
+            payload: item
           });
         }
       }
@@ -125,6 +260,7 @@ class StorageService {
 
   async removeFromWatchlist(id: number, type: 'movie' | 'tv'): Promise<void> {
     try {
+      // 1. Optimistic Update
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
       const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
@@ -132,15 +268,13 @@ class StorageService {
       const filtered = watchlist.filter(item => !(item.id === id && item.type === type));
       await AsyncStorage.setItem(key, JSON.stringify(filtered));
 
-      // Sync to Supabase if logged in
+      // 2. Queue for Sync
       const userId = await this.getUserId();
       if (userId) {
-        await supabase
-          .from('watchlists')
-          .delete()
-          .eq('user_id', userId)
-          .eq('tmdb_id', id)
-          .eq('media_type', type);
+        await this.addToQueue({
+          type: 'REMOVE',
+          payload: { id, type }
+        });
       }
     } catch (error) {
       console.error('Error removing from watchlist:', error);
@@ -149,6 +283,7 @@ class StorageService {
 
   async toggleWatched(id: number, type: 'movie' | 'tv'): Promise<void> {
     try {
+      // 1. Optimistic Update
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
       const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
@@ -159,15 +294,13 @@ class StorageService {
         item.watched = !item.watched;
         await AsyncStorage.setItem(key, JSON.stringify(watchlist));
 
-        // Sync to Supabase if logged in
+        // 2. Queue for Sync
         const userId = await this.getUserId();
         if (userId) {
-          await supabase
-            .from('watchlists')
-            .update({ status: item.watched ? 'completed' : 'plan_to_watch' })
-            .eq('user_id', userId)
-            .eq('tmdb_id', id)
-            .eq('media_type', type);
+          await this.addToQueue({
+            type: 'TOGGLE_WATCHED',
+            payload: { id, type }
+          });
         }
       }
     } catch (error) {
@@ -206,6 +339,7 @@ class StorageService {
 
   async markAsWatched(item: Omit<WatchlistItem, 'added_date' | 'watched'>): Promise<void> {
     try {
+      // 1. Optimistic Update
       const key = await this.getWatchlistKey();
       const localData = await AsyncStorage.getItem(key);
       const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
@@ -219,12 +353,10 @@ class StorageService {
 
           const userId = await this.getUserId();
           if (userId) {
-            await supabase
-              .from('watchlists')
-              .update({ status: 'completed' })
-              .eq('user_id', userId)
-              .eq('tmdb_id', item.id)
-              .eq('media_type', item.type);
+            await this.addToQueue({
+              type: 'MARK_WATCHED',
+              payload: { id: item.id, type: item.type }
+            });
           }
         }
       } else {
@@ -239,11 +371,20 @@ class StorageService {
 
         const userId = await this.getUserId();
         if (userId) {
-          await supabase.from('watchlists').insert({
-            user_id: userId,
-            tmdb_id: item.id,
-            media_type: item.type,
-            status: 'completed',
+          // This is complex: Insert AND Mark Watched. 
+          // For simplicity, let's just insert as completed.
+          // But our queue actions are separate.
+          // Let's just do ADD first, then MARK_WATCHED?
+          // Or just insert directly to Supabase if online?
+          // No, stick to queue.
+          // We can add a 'ADD_WATCHED' action type or just queue two actions.
+          await this.addToQueue({
+            type: 'ADD',
+            payload: item
+          });
+          await this.addToQueue({
+            type: 'MARK_WATCHED',
+            payload: { id: item.id, type: item.type }
           });
         }
       }

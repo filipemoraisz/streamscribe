@@ -63,9 +63,33 @@ export default function SeasonDetailsScreen() {
     router.push(`/episode/${showId}/${seasonNumber}/${episode.episode_number}`);
   };
 
+  const isEpisodeWatched = (episode: Episode): boolean => {
+    return episodeProgress.some(
+      ep => ep.season_number === episode.season_number &&
+        ep.episode_number === episode.episode_number &&
+        ep.watched
+    );
+  };
+
   const toggleEpisodeWatched = async (episode: Episode) => {
     try {
       const isWatched = isEpisodeWatched(episode);
+
+      if (!isWatched) {
+        // Check for future episodes
+        if (episode.air_date) {
+          const airDate = new Date(episode.air_date);
+          const now = new Date();
+          // Reset time part for accurate date comparison
+          airDate.setHours(0, 0, 0, 0);
+          now.setHours(0, 0, 0, 0);
+
+          if (airDate > now) {
+            Alert.alert("Oops...", "Nice try but you'll need to wait for this!");
+            return;
+          }
+        }
+      }
 
       if (isWatched) {
         await progressService.markEpisodeUnwatched(
@@ -88,14 +112,6 @@ export default function SeasonDetailsScreen() {
     }
   };
 
-  const isEpisodeWatched = (episode: Episode): boolean => {
-    return episodeProgress.some(
-      ep => ep.season_number === episode.season_number &&
-        ep.episode_number === episode.episode_number &&
-        ep.watched
-    );
-  };
-
   const getWatchedCount = (): number => {
     if (!season?.episodes) return 0;
     return season.episodes.filter(ep => isEpisodeWatched(ep)).length;
@@ -113,16 +129,38 @@ export default function SeasonDetailsScreen() {
           text: 'Mark All',
           onPress: async () => {
             try {
+              const now = new Date();
+              now.setHours(0, 0, 0, 0);
+              let skippedCount = 0;
+              const episodesToMark: number[] = [];
+
               for (const episode of season.episodes!) {
                 if (!isEpisodeWatched(episode)) {
-                  await progressService.markEpisodeWatched(
-                    parseInt(showId as string),
-                    episode.season_number,
-                    episode.episode_number
-                  );
+                  // Check air date
+                  if (episode.air_date) {
+                    const airDate = new Date(episode.air_date);
+                    airDate.setHours(0, 0, 0, 0);
+                    if (airDate > now) {
+                      skippedCount++;
+                      continue;
+                    }
+                  }
+                  episodesToMark.push(episode.episode_number);
                 }
               }
-              await loadProgress();
+
+              if (episodesToMark.length > 0) {
+                await progressService.markEpisodesBatch(
+                  parseInt(showId as string),
+                  parseInt(seasonNumber as string),
+                  episodesToMark
+                );
+                await loadProgress();
+              }
+
+              if (skippedCount > 0) {
+                Alert.alert('Note', `Marked available episodes as watched. Skipped ${skippedCount} un-aired episodes.`);
+              }
             } catch (error) {
               console.error('Error marking all watched:', error);
               Alert.alert('Error', 'Failed to mark all episodes as watched');

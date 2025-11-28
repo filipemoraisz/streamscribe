@@ -6,9 +6,10 @@ interface WatchlistActionButtonProps {
     onPress: () => void;
     label?: string;
     style?: ViewStyle;
+    icon?: keyof typeof Ionicons.glyphMap;
 }
 
-export const WatchlistActionButton: React.FC<WatchlistActionButtonProps> = ({ onPress, label, style }) => {
+export const WatchlistActionButton: React.FC<WatchlistActionButtonProps> = ({ onPress, label, style, icon = "play" }) => {
     return (
         <TouchableOpacity
             style={[
@@ -19,7 +20,7 @@ export const WatchlistActionButton: React.FC<WatchlistActionButtonProps> = ({ on
             onPress={onPress}
         >
             {label && <Text style={styles.label}>{label}</Text>}
-            <Ionicons name="play" size={10} color="white" style={label ? styles.iconWithLabel : undefined} />
+            <Ionicons name={icon} size={10} color="white" style={label ? styles.iconWithLabel : undefined} />
         </TouchableOpacity>
     );
 };
