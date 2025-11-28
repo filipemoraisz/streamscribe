@@ -182,3 +182,153 @@ export interface UserImpactStats {
   monthly_efficiency: number;
   last_updated: string;
 }
+
+// Real-time types
+export interface RealTimeUpdate {
+  id: string;
+  type: 'progress' | 'watchlist' | 'episode_release' | 'streaming_availability';
+  userId: string;
+  timestamp: string;
+  data: any;
+}
+
+export interface ProgressUpdate extends RealTimeUpdate {
+  type: 'progress';
+  data: {
+    showId: number;
+    seasonNumber: number;
+    episodeNumber: number;
+    watched: boolean;
+    deviceId: string;
+  };
+}
+
+export interface WatchlistUpdate extends RealTimeUpdate {
+  type: 'watchlist';
+  data: {
+    action: 'add' | 'remove' | 'update';
+    item: WatchlistItem;
+  };
+}
+
+export interface ConnectionState {
+  isConnected: boolean;
+  isConnecting: boolean;
+  lastConnected?: string;
+  reconnectAttempts: number;
+}
+
+export interface SyncAction {
+  id: string;
+  type: 'progress_update' | 'watchlist_change' | 'preference_update' | 'real_time_progress' | 'real_time_watchlist' | 'streaming_availability_update' | 'episode_release_update';
+  payload: any;
+  timestamp: string;
+  retryCount: number;
+  deviceId: string;
+  priority: 'high' | 'normal' | 'low';
+  batchId?: string;
+  conflictResolution?: 'last_write_wins' | 'merge' | 'manual';
+  originalTimestamp?: string; // For conflict detection
+}
+
+export interface QueueStatus {
+  pendingActions: number;
+  lastSyncTime: string;
+  isProcessing: boolean;
+  errors: SyncError[];
+}
+
+export interface SyncError {
+  id: string;
+  action: SyncAction;
+  error: string;
+  timestamp: string;
+}
+
+export interface SyncResult {
+  processed: number;
+  failed: number;
+  conflicts: ConflictResolution[];
+}
+
+export interface ConflictResolution {
+  actionId: string;
+  conflictingActionId?: string;
+  resolution: 'local_wins' | 'remote_wins' | 'merged';
+  details: string;
+  timestamp: string;
+  deviceIds: string[];
+}
+
+// Notification types
+export interface NotificationPayload {
+  id: string;
+  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync';
+  title: string;
+  body: string;
+  data: Record<string, any>;
+  scheduledFor?: string;
+  priority: 'high' | 'normal' | 'low';
+}
+
+export interface NotificationPreferences {
+  userId: string;
+  episodeReleases: boolean;
+  streamingUpdates: boolean;
+  recommendations: boolean;
+  progressSync: boolean;
+  quietHours: {
+    enabled: boolean;
+    start: string; // HH:MM format
+    end: string;   // HH:MM format
+  };
+  frequency: 'immediate' | 'daily' | 'weekly';
+  updatedAt: string;
+}
+
+export interface LocalNotification {
+  id: string;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+  trigger?: {
+    seconds?: number;
+    date?: Date;
+  };
+}
+
+// Enhanced sync queue types
+export interface SyncBatch {
+  id: string;
+  actions: SyncAction[];
+  priority: 'high' | 'normal' | 'low';
+  createdAt: string;
+  deviceId: string;
+}
+
+export interface DeviceActionTracker {
+  deviceId: string;
+  lastSyncTime: string;
+  pendingActions: number;
+  conflictCount: number;
+  successfulSyncs: number;
+  failedSyncs: number;
+}
+
+export interface OptimisticUpdate {
+  id: string;
+  actionId: string;
+  type: 'progress' | 'watchlist' | 'preference';
+  originalData: any;
+  optimisticData: any;
+  timestamp: string;
+  applied: boolean;
+}
+
+export interface RollbackOperation {
+  id: string;
+  optimisticUpdateId: string;
+  reason: 'sync_failed' | 'conflict_detected' | 'manual_rollback';
+  timestamp: string;
+  rollbackData: any;
+}

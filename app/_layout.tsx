@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Colors } from "../constants/Colors";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import { notificationDeepLinkingService } from "../services/notificationDeepLinking";
+import { realTimeManager } from "../services/realtime";
+import { notificationManager } from "../services/notifications";
 
 function RootLayoutNav() {
   const { user, preferences, loading } = useAuth();
@@ -30,6 +33,32 @@ function RootLayoutNav() {
       router.replace('/(tabs)');
     }
   }, [user, preferences, loading, segments]);
+
+  // Initialize services
+  useEffect(() => {
+    const initializeServices = async () => {
+      try {
+        // Initialize notification services
+        notificationDeepLinkingService.initialize();
+        await notificationManager.initialize();
+        
+        // Initialize real-time manager
+        await realTimeManager.connect();
+        
+        console.log('Services initialized successfully');
+      } catch (error) {
+        console.error('Error initializing services:', error);
+      }
+    };
+
+    initializeServices();
+    
+    return () => {
+      notificationDeepLinkingService.cleanup();
+      realTimeManager.disconnect();
+      notificationManager.cleanup();
+    };
+  }, []);
 
   return (
     <>

@@ -200,7 +200,7 @@ class ProgressService {
             const showIds = new Set(episodes?.map(e => e.show_id));
             const showProgressList: ShowProgress[] = [];
 
-            for (const showId of showIds) {
+            for (const showId of Array.from(showIds)) {
                 const showEpisodes = episodes!.filter(e => e.show_id === showId && e.watched);
                 if (showEpisodes.length === 0) continue;
 

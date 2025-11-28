@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { ActivityIndicator, Dimensions, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MediaCard } from '../../components/MediaCard';
 import { FilterType, WatchlistFilter } from '../../components/WatchlistFilter';
+import { SyncStatusIndicator } from '../../components/SyncStatusIndicator';
+import { useRealTimeStatus } from '../../components/hooks/useRealTimeStatus';
+import { useAutoRefreshOnUpdates } from '../../components/hooks/useRealTimeUpdates';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { progressService } from '../../services/progress';
@@ -19,6 +22,7 @@ const itemWidth = (width - (PADDING * 2) - (GAP * (numColumns - 1))) / numColumn
 
 export default function WatchlistScreen() {
   const { user } = useAuth();
+  const realTimeStatus = useRealTimeStatus();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [showProgress, setShowProgress] = useState<Map<number, ShowProgress>>(new Map());
   const [filter, setFilter] = useState<FilterType>('all');
@@ -36,6 +40,13 @@ export default function WatchlistScreen() {
     watchlistRef.current = watchlist;
     showProgressRef.current = showProgress;
   }, [watchlist, showProgress]);
+
+  // Auto-refresh on real-time updates
+  useAutoRefreshOnUpdates(useCallback(() => {
+    if (!isLoading && !isRefreshing) {
+      loadWatchlist(false);
+    }
+  }, [isLoading, isRefreshing]));
 
   useEffect(() => {
     if (!user) {
@@ -328,12 +339,21 @@ export default function WatchlistScreen() {
       {/* Custom Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Watchlist</Text>
-        <TouchableOpacity
-          style={styles.archiveButton}
-          onPress={() => router.push('/history')}
-        >
-          <Ionicons name="archive-outline" size={24} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <SyncStatusIndicator
+            isConnected={realTimeStatus.isConnected}
+            isProcessing={realTimeStatus.isConnecting}
+            pendingActions={realTimeStatus.pendingActions}
+            lastSyncTime={realTimeStatus.lastSyncTime}
+            compact={true}
+          />
+          <TouchableOpacity
+            style={styles.archiveButton}
+            onPress={() => router.push('/history')}
+          >
+            <Ionicons name="archive-outline" size={24} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
@@ -386,6 +406,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: Colors.text,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   archiveButton: {
     padding: 8,

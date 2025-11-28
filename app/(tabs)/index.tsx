@@ -1,10 +1,16 @@
 import { ImpactHeader } from '@/components/ImpactHeader';
 import { MediaSection } from '@/components/MediaSection';
+import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+import { RealTimeRecommendationWidget } from '@/components/RealTimeRecommendationWidget';
+import { useRealTimeStatus } from '@/components/hooks/useRealTimeStatus';
+import { useAutoRefreshOnUpdates } from '@/components/hooks/useRealTimeUpdates';
+import { useNotificationCount } from '@/components/hooks/useNotificationCount';
 import { Colors } from '@/constants/Colors';
 import { optimizerService } from '@/services/optimizer';
 import { progressService } from '@/services/progress';
 import { storageService } from '@/services/storage';
 import { tmdbService } from '@/services/tmdb';
+import { useAuth } from '@/contexts/AuthContext';
 import { Movie, TVShow, WatchlistItem } from '@/types';
 import { Link, router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -16,8 +22,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { NotificationBadge } from '@/components/NotificationBadge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Section = {
@@ -28,6 +37,9 @@ type Section = {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const realTimeStatus = useRealTimeStatus();
+  const { user } = useAuth();
+  const { unreadCount: unreadNotifications } = useNotificationCount();
   const [sections, setSections] = useState<Section[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [nextEpisodes, setNextEpisodes] = useState<Record<number, { season: number; episode: number }>>({});
@@ -38,6 +50,8 @@ export default function HomeScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+
 
   const fetchContent = async () => {
     try {
@@ -117,6 +131,13 @@ export default function HomeScreen() {
       fetchUserData();
     }, [])
   );
+
+  // Auto-refresh on real-time updates
+  useAutoRefreshOnUpdates(useCallback(() => {
+    if (!loading && !refreshing) {
+      fetchUserData();
+    }
+  }, [loading, refreshing]));
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -234,12 +255,30 @@ export default function HomeScreen() {
             resizeMode="contain"
           />
         </View>
+        
+        <TouchableOpacity 
+          style={styles.notificationButton}
+          onPress={() => router.push('/notifications')}
+        >
+          <Ionicons name="notifications" size={24} color={Colors.text} />
+          <View style={styles.badgeContainer}>
+            <NotificationBadge count={unreadNotifications} size="small" />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ImpactHeader
         totalSavings={stats.savings}
         efficiency={stats.efficiency}
         streak={stats.streak}
+      />
+
+      {/* Sync Status */}
+      <SyncStatusIndicator
+        isConnected={realTimeStatus.isConnected}
+        isProcessing={realTimeStatus.isConnecting}
+        pendingActions={realTimeStatus.pendingActions}
+        lastSyncTime={realTimeStatus.lastSyncTime}
       />
 
       {watchlist.length > 0 && (
@@ -255,6 +294,11 @@ export default function HomeScreen() {
           onMovieActionPress={handleMovieActionPress}
         />
       )}
+
+      {/* Real-time Recommendations */}
+      <RealTimeRecommendationWidget
+        onItemPress={(item, type) => handleItemPress(item, type)}
+      />
 
       {sections.map((section) => (
         <MediaSection
@@ -298,5 +342,14 @@ const styles = StyleSheet.create({
     width: 150,
     height: 30,
     marginTop: 4,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
   },
 });

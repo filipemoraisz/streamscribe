@@ -193,7 +193,7 @@ class RecommendationService {
       // Convert analysis to recommendations
       const recommendations: ProviderRecommendation[] = [];
 
-      for (const [providerId, analysis] of providerAnalysis) {
+      for (const [providerId, analysis] of Array.from(providerAnalysis.entries())) {
         const movies = analysis.content.filter(item => item.type === 'movie');
         const tvShows = analysis.content.filter(item => item.type === 'tv');
 
