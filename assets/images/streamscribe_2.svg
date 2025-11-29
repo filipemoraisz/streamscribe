@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW 2021.5 -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="83.7818mm" height="83.7818mm" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 4018.37 4018.37"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .fil2 {fill:white}
+    .fil1 {fill:#C4460C}
+    .fil0 {fill:#FF6600}
+   ]]>
+  </style>
+     <mask id="id0">
+  <linearGradient id="id1" gradientUnits="userSpaceOnUse" x1="2637.49" y1="1090.9" x2="-276.18" y2="4280.74">
+   <stop offset="0" style="stop-opacity:1; stop-color:white"/>
+   <stop offset="1" style="stop-opacity:0; stop-color:white"/>
+  </linearGradient>
+      <rect style="fill:url(#id1)" x="-4.8" y="-4.8" width="4027.96" height="4027.96"/>
+     </mask>
+ </defs>
+ <g id="Camada_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <g id="_105553246692832">
+   <g>
+    <rect class="fil0" width="4018.37" height="4018.37"/>
+    <rect class="fil0" width="4018.37" height="4018.37"/>
+    <polygon class="fil1" style="mask:url(#id0)" points="-0,4018.37 4018.37,4018.37 4018.37,0 -0,0 "/>
+   </g>
+   <g>
+    <path class="fil2" d="M442.77 1754.85l1386.12 0 310.6 -452.75 -1386.12 0 -310.6 452.75zm1734.49 -452.75l-310.6 452.75 1386.12 0 310.6 -452.75 -1386.12 0z"/>
+    <path class="fil2" d="M1831.09 1782.84l-1384.88 0 321.94 452.64 1384.88 0 -321.94 -452.64zm37.68 0l321.94 452.64 1384.88 0 -321.94 -452.64 -1384.88 0z"/>
+    <path class="fil2" d="M1840.77 2715.61l309.9 -452.09 -1383.84 0 -309.86 452.09 1383.84 0 -0.05 0zm1732.48 -452.09l-1384.88 0 -310.34 452.74 1384.88 0 310.34 -452.74z"/>
+   </g>
+  </g>
+ </g>
+</svg>

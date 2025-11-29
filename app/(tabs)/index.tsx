@@ -1,6 +1,6 @@
 import { ImpactHeader } from '@/components/ImpactHeader';
 import { MediaSection } from '@/components/MediaSection';
-import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+import { ConnectionBanner } from '@/components/ConnectionBanner';
 import { RealTimeRecommendationWidget } from '@/components/RealTimeRecommendationWidget';
 import { useRealTimeStatus } from '@/components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '@/components/hooks/useRealTimeUpdates';
@@ -29,6 +29,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NotificationBadge } from '@/components/NotificationBadge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StreamScribeIcon } from '@/components/StreamScribeIcon';
 
 type Section = {
   title: string;
@@ -51,7 +52,6 @@ export default function HomeScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showSyncModal, setShowSyncModal] = useState(false);
 
 
 
@@ -238,19 +238,32 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 10, paddingBottom: 100 },
-      ]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
-      }
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome back,</Text>
+    <View style={styles.container}>
+      {/* Connection Status Banner */}
+      <ConnectionBanner 
+        isConnected={realTimeStatus.isConnected}
+        isConnecting={realTimeStatus.isConnecting}
+      />
+      
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 10, paddingBottom: 100 },
+        ]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+        }
+      >
+        <View style={styles.header}>
+        <View style={styles.brandContainer}>
+          {/* App Icon */}
+          <Image
+            source={require('@/assets/images/streamscribe_round.png')}
+            style={styles.appIcon}
+            resizeMode="contain"
+          />
+          
           <Image
             source={require('@/assets/images/logo-text-white.png')}
             style={styles.logo}
@@ -258,32 +271,16 @@ export default function HomeScreen() {
           />
         </View>
         
-        <View style={styles.headerActions}>
-          {/* Compact Sync Status Icon */}
-          <TouchableOpacity 
-            style={styles.syncButton}
-            onPress={() => setShowSyncModal(true)}
-          >
-            <SyncStatusIndicator
-              isConnected={realTimeStatus.isConnected}
-              isProcessing={realTimeStatus.isConnecting}
-              pendingActions={realTimeStatus.pendingActions}
-              lastSyncTime={realTimeStatus.lastSyncTime}
-              compact={true}
-            />
-          </TouchableOpacity>
-          
-          {/* Notification Button */}
-          <TouchableOpacity 
-            style={styles.notificationButton}
-            onPress={() => router.push('/notifications')}
-          >
-            <Ionicons name="notifications" size={24} color={Colors.text} />
-            <View style={styles.badgeContainer}>
-              <NotificationBadge count={unreadNotifications} size="small" />
-            </View>
-          </TouchableOpacity>
-        </View>
+        {/* Notification Button */}
+        <TouchableOpacity 
+          style={styles.notificationButton}
+          onPress={() => router.push('/notifications')}
+        >
+          <Ionicons name="notifications" size={24} color={Colors.text} />
+          <View style={styles.badgeContainer}>
+            <NotificationBadge count={unreadNotifications} size="small" />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ImpactHeader
@@ -325,51 +322,8 @@ export default function HomeScreen() {
         />
       ))}
 
-      {/* Sync Status Modal */}
-      <Modal
-        visible={showSyncModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSyncModal(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSyncModal(false)}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sync Status</Text>
-              <TouchableOpacity onPress={() => setShowSyncModal(false)}>
-                <Ionicons name="close" size={24} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <SyncStatusIndicator
-              isConnected={realTimeStatus.isConnected}
-              isProcessing={realTimeStatus.isConnecting}
-              pendingActions={realTimeStatus.pendingActions}
-              lastSyncTime={realTimeStatus.lastSyncTime}
-              compact={false}
-            />
-            
-            <View style={styles.syncDetails}>
-              <Text style={styles.detailText}>
-                Connection: {realTimeStatus.isConnected ? 'Online' : 'Offline'}
-              </Text>
-              <Text style={styles.detailText}>
-                Pending Actions: {realTimeStatus.pendingActions}
-              </Text>
-              {realTimeStatus.lastSyncTime && (
-                <Text style={styles.detailText}>
-                  Last Sync: {new Date(realTimeStatus.lastSyncTime).toLocaleString()}
-                </Text>
-              )}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -377,6 +331,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   center: {
     justifyContent: 'center',
@@ -392,22 +349,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-  greeting: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  logo: {
-    width: 150,
-    height: 30,
-    marginTop: 4,
-  },
-  headerActions: {
+  brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flex: 1,
   },
-  syncButton: {
-    padding: 8,
+  appIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
+  },
+  logo: {
+    width: 120,
+    height: 24,
   },
   notificationButton: {
     position: 'relative',
@@ -417,41 +371,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     right: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    padding: 20,
-    margin: 20,
-    minWidth: 300,
-    maxWidth: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  syncDetails: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  detailText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 8,
   },
 });

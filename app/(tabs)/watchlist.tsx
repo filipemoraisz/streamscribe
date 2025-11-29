@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { ActivityIndicator, Dimensions, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MediaCard } from '../../components/MediaCard';
 import { FilterType, WatchlistFilter } from '../../components/WatchlistFilter';
-import { SyncStatusIndicator } from '../../components/SyncStatusIndicator';
+import { ConnectionBanner } from '../../components/ConnectionBanner';
 import { useRealTimeStatus } from '../../components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '../../components/hooks/useRealTimeUpdates';
 import { Colors } from '../../constants/Colors';
@@ -336,24 +336,21 @@ export default function WatchlistScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Connection Status Banner */}
+      <ConnectionBanner 
+        isConnected={realTimeStatus.isConnected}
+        isConnecting={realTimeStatus.isConnecting}
+      />
+
       {/* Custom Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Watchlist</Text>
-        <View style={styles.headerActions}>
-          <SyncStatusIndicator
-            isConnected={realTimeStatus.isConnected}
-            isProcessing={realTimeStatus.isConnecting}
-            pendingActions={realTimeStatus.pendingActions}
-            lastSyncTime={realTimeStatus.lastSyncTime}
-            compact={true}
-          />
-          <TouchableOpacity
-            style={styles.archiveButton}
-            onPress={() => router.push('/history')}
-          >
-            <Ionicons name="archive-outline" size={24} color={Colors.text} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={() => router.push('/history')}
+          style={styles.archiveButton}
+        >
+          <Ionicons name="archive-outline" size={24} color={Colors.text} />
+        </TouchableOpacity>
       </View>
 
       <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
@@ -403,14 +400,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: Colors.text,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   archiveButton: {
     padding: 8,

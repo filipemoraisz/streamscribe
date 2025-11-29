@@ -120,6 +120,34 @@ export default function ProfileScreen() {
           <ProgressStats />
         </View>
 
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsList}>
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => router.push('/connection-test')}
+            >
+              <View style={styles.actionLeft}>
+                <SymbolView name="wifi" size={22} tintColor={Colors.primary} />
+                <Text style={styles.actionText}>Connection Test</Text>
+              </View>
+              <SymbolView name="chevron.right" size={16} tintColor={Colors.textMuted} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => router.push('/notification-settings')}
+            >
+              <View style={styles.actionLeft}>
+                <SymbolView name="bell" size={22} tintColor={Colors.primary} />
+                <Text style={styles.actionText}>Notification Settings</Text>
+              </View>
+              <SymbolView name="chevron.right" size={16} tintColor={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Details Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Personal Information</Text>
@@ -288,6 +316,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 16,
+  },
+  actionsList: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionText: {
+    fontSize: 16,
+    color: Colors.text,
+    fontWeight: '500',
   },
   infoList: {
     backgroundColor: Colors.surface,

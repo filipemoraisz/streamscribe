@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -168,32 +167,36 @@ export default function NotificationSettingsScreen() {
 
   if (isLoading || !preferences) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notification Settings</Text>
-          <View style={{ width: 24 }} />
+      <>
+        <Stack.Screen 
+          options={{
+            title: 'Notification Settings',
+            headerShown: true,
+          }} 
+        />
+        <View style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading preferences...</Text>
+          </View>
         </View>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading preferences...</Text>
-        </View>
-      </SafeAreaView>
+      </>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notification Settings</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView style={styles.content}>
+    <>
+      <Stack.Screen 
+        options={{
+          title: 'Notification Settings',
+          headerShown: true,
+        }} 
+      />
+      <View style={styles.container}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Permission Status */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Permission Status</Text>
@@ -227,7 +230,7 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="tv" size={22} color={BrandTokens.ctaPink} />
+              <Ionicons name="tv" size={22} color="#FF6B35" />
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingTitle}>Episode Releases</Text>
                 <Text style={styles.settingDescription}>
@@ -238,7 +241,7 @@ export default function NotificationSettingsScreen() {
             <Switch
               value={preferences.episodeReleases}
               onValueChange={(value) => updatePreference('episodeReleases', value)}
-              trackColor={{ false: Colors.border, true: BrandTokens.ctaPink }}
+              trackColor={{ false: Colors.border, true: '#FF6B35' }}
               thumbColor={BrandTokens.white}
               disabled={isSaving}
             />
@@ -246,7 +249,7 @@ export default function NotificationSettingsScreen() {
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="trending-up" size={22} color={BrandTokens.brandBlue} />
+              <Ionicons name="trending-up" size={22} color="#FF6B35" />
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingTitle}>Streaming Updates</Text>
                 <Text style={styles.settingDescription}>
@@ -257,7 +260,7 @@ export default function NotificationSettingsScreen() {
             <Switch
               value={preferences.streamingUpdates}
               onValueChange={(value) => updatePreference('streamingUpdates', value)}
-              trackColor={{ false: Colors.border, true: BrandTokens.brandBlue }}
+              trackColor={{ false: Colors.border, true: '#FF6B35' }}
               thumbColor={BrandTokens.white}
               disabled={isSaving}
             />
@@ -265,7 +268,7 @@ export default function NotificationSettingsScreen() {
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="star" size={22} color={BrandTokens.accentPurple} />
+              <Ionicons name="star" size={22} color="#FF6B35" />
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingTitle}>Recommendations</Text>
                 <Text style={styles.settingDescription}>
@@ -276,7 +279,7 @@ export default function NotificationSettingsScreen() {
             <Switch
               value={preferences.recommendations}
               onValueChange={(value) => updatePreference('recommendations', value)}
-              trackColor={{ false: Colors.border, true: BrandTokens.accentPurple }}
+              trackColor={{ false: Colors.border, true: '#FF6B35' }}
               thumbColor={BrandTokens.white}
               disabled={isSaving}
             />
@@ -284,7 +287,7 @@ export default function NotificationSettingsScreen() {
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="sync" size={22} color={BrandTokens.brandLime} />
+              <Ionicons name="sync" size={22} color="#FF6B35" />
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingTitle}>Progress Sync</Text>
                 <Text style={styles.settingDescription}>
@@ -295,7 +298,7 @@ export default function NotificationSettingsScreen() {
             <Switch
               value={preferences.progressSync}
               onValueChange={(value) => updatePreference('progressSync', value)}
-              trackColor={{ false: Colors.border, true: BrandTokens.brandLime }}
+              trackColor={{ false: Colors.border, true: '#FF6B35' }}
               thumbColor={BrandTokens.white}
               disabled={isSaving}
             />
@@ -308,7 +311,7 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="moon" size={22} color={BrandTokens.mutedGray} />
+              <Ionicons name="moon" size={22} color="#FF6B35" />
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingTitle}>Enable Quiet Hours</Text>
                 <Text style={styles.settingDescription}>
@@ -319,7 +322,7 @@ export default function NotificationSettingsScreen() {
             <Switch
               value={preferences.quietHours?.enabled || false}
               onValueChange={(value) => updateQuietHours('enabled', value)}
-              trackColor={{ false: Colors.border, true: BrandTokens.mutedGray }}
+              trackColor={{ false: Colors.border, true: '#FF6B35' }}
               thumbColor={BrandTokens.white}
               disabled={isSaving}
             />
@@ -394,7 +397,7 @@ export default function NotificationSettingsScreen() {
             disabled={isSaving}
           >
             <View style={styles.actionLeft}>
-              <Ionicons name="send" size={22} color={BrandTokens.brandBlue} />
+              <Ionicons name="send" size={22} color="#FF6B35" />
               <Text style={styles.actionText}>Send Test Notification</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
@@ -436,7 +439,8 @@ export default function NotificationSettingsScreen() {
           onChange={(event, time) => handleTimeChange(event, time, 'end')}
         />
       )}
-    </SafeAreaView>
+      </View>
+    </>
   );
 }
 
@@ -464,6 +468,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -584,7 +591,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: BrandTokens.ctaPink,
+    borderColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -592,7 +599,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: BrandTokens.ctaPink,
+    backgroundColor: '#FF6B35',
   },
   actionItem: {
     flexDirection: 'row',
