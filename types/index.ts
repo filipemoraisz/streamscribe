@@ -106,6 +106,7 @@ export interface User {
   email: string;
   name: string;
   createdAt: string;
+  profileImage?: string | null;
 }
 
 export interface Episode {

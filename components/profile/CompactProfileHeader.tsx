@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -17,6 +17,7 @@ interface CompactProfileHeaderProps {
   userEmail: string;
   stats: UserStats;
   onEditPress?: () => void;
+  profileImage?: string | null;
 }
 
 export const CompactProfileHeader: React.FC<CompactProfileHeaderProps> = ({
@@ -24,6 +25,7 @@ export const CompactProfileHeader: React.FC<CompactProfileHeaderProps> = ({
   userEmail,
   stats,
   onEditPress,
+  profileImage,
 }) => {
   const fadeAnim = useSharedValue(0);
   const flameScale = useSharedValue(1);
@@ -58,7 +60,11 @@ export const CompactProfileHeader: React.FC<CompactProfileHeaderProps> = ({
       {/* Top Section: Avatar, User Info, and Edit Icon */}
       <View style={styles.topSection}>
         <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
+          {profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
+          )}
         </View>
         <View style={styles.userInfo}>
           <Text style={styles.userName} numberOfLines={1}>{userName}</Text>
@@ -122,7 +128,7 @@ export const CompactProfileHeader: React.FC<CompactProfileHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1a0f0a',
+    backgroundColor: '#0a0605',
     borderRadius: 20,
     padding: 18,
     marginHorizontal: 20,
@@ -144,7 +150,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#2a1a10',
+    backgroundColor: '#150d0a',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -160,6 +166,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#ff8a4c',
+  },
+  avatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   userInfo: {
     flex: 1,

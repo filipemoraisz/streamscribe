@@ -84,6 +84,7 @@ class AuthService {
         email: session.user.email || '',
         name: session.user.user_metadata?.full_name || '',
         createdAt: session.user.created_at,
+        profileImage: session.user.user_metadata?.profile_image || null,
       };
     } catch (error) {
       console.error('Get current user error:', error);
@@ -98,8 +99,18 @@ class AuthService {
 
   async updateUser(updatedUser: Partial<User>): Promise<{ success: boolean; message: string }> {
     try {
+      const updateData: any = {};
+      
+      if (updatedUser.name) {
+        updateData.full_name = updatedUser.name;
+      }
+      
+      if (updatedUser.profileImage !== undefined) {
+        updateData.profile_image = updatedUser.profileImage;
+      }
+
       const { error } = await supabase.auth.updateUser({
-        data: { full_name: updatedUser.name }
+        data: updateData
       });
 
       if (error) {

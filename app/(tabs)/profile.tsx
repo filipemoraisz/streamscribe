@@ -30,10 +30,7 @@ import { UserStats, AchievementStats } from '../../types';
 const HEADER_HEIGHT = 60;
 
 export default function ProfileScreen() {
-  const { user, updateUser } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   
   // Data loading states
@@ -160,27 +157,7 @@ export default function ProfileScreen() {
     };
   });
 
-  const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Error', 'Name cannot be empty');
-      return;
-    }
 
-    const result = await updateUser({ name: name.trim(), email: email.trim() });
-    if (result.success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully');
-    } else {
-      Alert.alert('Error', result.message);
-    }
-  };
-
-  const handleCancel = () => {
-    setName(user?.name || '');
-    setEmail(user?.email || '');
-    setIsEditing(false);
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -287,7 +264,8 @@ export default function ProfileScreen() {
             userName={user.name}
             userEmail={user.email}
             stats={userStats}
-            onEditPress={!isEditing ? () => setIsEditing(true) : undefined}
+            profileImage={user.profileImage}
+            onEditPress={() => router.push('/edit-profile' as any)}
           />
         )}
 
@@ -327,62 +305,7 @@ export default function ProfileScreen() {
           </>
         )}
 
-        {/* Personal Information Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
 
-          {isEditing ? (
-            <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Your Name"
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Your Email"
-                  placeholderTextColor="#999"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
-              </View>
-
-              <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.infoList}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Name</Text>
-                <Text style={styles.infoValue}>{user.name}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{user.email}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Member Since</Text>
-                <Text style={styles.infoValue}>{new Date(user.createdAt).toLocaleDateString()}</Text>
-              </View>
-            </View>
-          )}
-        </View>
       </Animated.ScrollView>
 
       {/* Sticky Header */}
@@ -394,8 +317,8 @@ export default function ProfileScreen() {
       >
         <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
           <BlurView
-            intensity={80}
-            tint={colorScheme === 'dark' ? 'dark' : 'light'}
+            intensity={95}
+            tint="dark"
             style={StyleSheet.absoluteFill}
           />
         </Animated.View>
@@ -486,102 +409,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 16,
-  },
-  infoList: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  infoLabel: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '600',
-  },
-  form: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: Colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
+
   errorText: {
     fontSize: 16,
     color: Colors.error,
