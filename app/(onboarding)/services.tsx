@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { authService } from '../../services/auth';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Mock list of popular services
 const POPULAR_SERVICES = [
@@ -14,7 +16,8 @@ const POPULAR_SERVICES = [
 ];
 
 export default function ServicesScreen() {
-    // const { user } = useAuth();
+    const { user } = useAuth();
+    const router = useRouter();
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -27,16 +30,26 @@ export default function ServicesScreen() {
     };
 
     const handleContinue = async () => {
+        if (selectedServices.length === 0) {
+            // Allow skipping, but at least one service is recommended
+            console.log('No services selected, but continuing anyway');
+        }
+
         setLoading(true);
         try {
-            // Save selected services to user profile
-            // await authService.updateProfile({ services: selectedServices });
-            // For now, just simulate a delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Save selected services to user preferences
+            if (user) {
+                await authService.saveUserPreferences({
+                    subscribed_services: selectedServices,
+                });
+            }
+            
             // Navigate to next step (Budget)
-            // router.push('/(onboarding)/budget');
+            router.push('/(onboarding)/budget');
         } catch (error) {
             console.error('Error saving services:', error);
+            // Still navigate even if save fails
+            router.push('/(onboarding)/budget');
         } finally {
             setLoading(false);
         }

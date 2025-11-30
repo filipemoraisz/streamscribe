@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Alert,
   RefreshControl,
@@ -28,11 +28,32 @@ export default function ProfileScreen() {
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const colorScheme = useColorScheme();
   const iconColor = colorScheme === 'dark' ? 'white' : 'black';
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
+
+  // Auto-refresh achievement data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const refreshAchievementData = async () => {
+        try {
+          const { achievementsService } = await import('../../services/achievements');
+          if (user?.id) {
+            await achievementsService.clearUserCache(user.id);
+            // Trigger re-render by updating key
+            setRefreshKey(prev => prev + 1);
+          }
+        } catch (error) {
+          console.error('Error refreshing achievement data:', error);
+        }
+      };
+
+      refreshAchievementData();
+    }, [user?.id])
+  );
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -70,8 +91,19 @@ export default function ProfileScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate refresh or reload user data if needed
-    setTimeout(() => setRefreshing(false), 1000);
+    try {
+      // Clear achievement cache to force fresh data
+      const { achievementsService } = await import('../../services/achievements');
+      if (user?.id) {
+        await achievementsService.clearUserCache(user.id);
+      }
+      // Small delay to allow cache to clear
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (!user) {
@@ -123,7 +155,7 @@ export default function ProfileScreen() {
 
         {/* Achievement Badge */}
         <View style={styles.achievementBadgeContainer}>
-          <AchievementBadge size="large" />
+          <AchievementBadge size="large" key={`achievement-${refreshKey}`} />
         </View>
 
         {/* Quick Actions */}

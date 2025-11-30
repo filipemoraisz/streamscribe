@@ -458,25 +458,36 @@ class RecommendationNotificationService {
     const genreCount = new Map<number, number>();
     const genreRating = new Map<number, number>();
 
-    for (const item of watchlist) {
+    // OPTIMIZED: Batch fetch details for all watchlist items using Promise.all
+    const detailsPromises = watchlist.map(async (item) => {
       try {
-        // Get detailed information to access genre_ids
         const details = item.type === 'movie' 
           ? await tmdbService.getMovieDetails(item.id)
           : await tmdbService.getTVShowDetails(item.id);
 
         if (details && 'genre_ids' in details) {
-          const genres = details.genre_ids || [];
-          
-          genres.forEach(genreId => {
-            genreCount.set(genreId, (genreCount.get(genreId) || 0) + 1);
-            genreRating.set(genreId, (genreRating.get(genreId) || 0) + item.vote_average);
-          });
+          return {
+            item,
+            genres: details.genre_ids || []
+          };
         }
       } catch (error) {
         console.warn(`Failed to get details for ${item.title}:`, error);
       }
-    }
+      return null;
+    });
+
+    const detailsResults = await Promise.all(detailsPromises);
+    
+    // Process genre data
+    detailsResults.forEach(result => {
+      if (result) {
+        result.genres.forEach(genreId => {
+          genreCount.set(genreId, (genreCount.get(genreId) || 0) + 1);
+          genreRating.set(genreId, (genreRating.get(genreId) || 0) + result.item.vote_average);
+        });
+      }
+    });
 
     // Calculate preference scores (frequency * average rating)
     const preferences = new Map<number, number>();

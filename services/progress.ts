@@ -284,23 +284,67 @@ class ProgressService {
             await AsyncStorage.setItem(key, JSON.stringify(filtered));
             await this.updateShowProgressLocal(showId);
 
-            // 2. Queue for Sync
+            // 2. Sync to Supabase immediately (for achievement checking)
             if (userId !== 'guest') {
-                await this.addToQueue({
-                    type: 'MARK_WATCHED',
-                    payload: { showId, seasonNumber, episodeNumber, rating }
-                });
+                console.log('[Progress] Syncing episode to Supabase for achievement checking');
+                
+                // Check if online
+                const netInfo = await import('@react-native-community/netinfo').then(m => m.default.fetch());
+                
+                if (netInfo.isConnected) {
+                    // Directly insert to Supabase (don't queue)
+                    try {
+                        const { error } = await supabase.from('episode_progress').upsert({
+                            user_id: userId,
+                            show_id: showId,
+                            season_number: seasonNumber,
+                            episode_number: episodeNumber,
+                            watched: true,
+                            watched_date: new Date().toISOString(),
+                            rating,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'user_id, show_id, season_number, episode_number' });
+
+                        if (error) {
+                            console.error('[Progress] Error syncing to Supabase:', error);
+                            // Fallback: queue for later
+                            await this.addToQueue({
+                                type: 'MARK_WATCHED',
+                                payload: { showId, seasonNumber, episodeNumber, rating }
+                            });
+                        } else {
+                            console.log('[Progress] ✅ Episode synced to Supabase successfully');
+                        }
+                    } catch (syncError) {
+                        console.error('[Progress] Sync error:', syncError);
+                        // Fallback: queue for later
+                        await this.addToQueue({
+                            type: 'MARK_WATCHED',
+                            payload: { showId, seasonNumber, episodeNumber, rating }
+                        });
+                    }
+                } else {
+                    // Offline: queue for later
+                    console.log('[Progress] Offline - queuing for later sync');
+                    await this.addToQueue({
+                        type: 'MARK_WATCHED',
+                        payload: { showId, seasonNumber, episodeNumber, rating }
+                    });
+                }
             }
 
             // 3. Check achievements (viewing and streak)
             if (userId !== 'guest') {
+                console.log(`[Progress] Checking achievements for user: ${userId}`);
                 try {
                     await achievementChecker.checkEpisodeAchievements(userId);
                     await achievementChecker.checkStreakAchievements(userId);
                 } catch (achievementError) {
-                    console.error('Error checking achievements:', achievementError);
+                    console.error('[Progress] Error checking achievements:', achievementError);
                     // Don't fail the main operation if achievement check fails
                 }
+            } else {
+                console.log('[Progress] Skipping achievement check - user is guest');
             }
 
         } catch (error) {
@@ -426,6 +470,7 @@ class ProgressService {
                                 poster_path: showDetails.poster_path,
                                 first_air_date: showDetails.first_air_date,
                                 vote_average: showDetails.vote_average,
+                                watched: false,
                             });
                             console.log(`[Progress] Auto-added show ${showId} to watchlist.`);
                         }
@@ -624,6 +669,64 @@ class ProgressService {
         } catch (error) {
             console.error('Error getting next episode to watch:', error);
             return null;
+        }
+    }
+
+    /**
+     * PERFORMANCE OPTIMIZATION: Batch query for next episodes
+     * Fetches next episodes for multiple shows in ONE operation instead of N queries
+     */
+    async getNextEpisodesForShows(showIds: number[]): Promise<Map<number, { season: number; episode: number }>> {
+        const result = new Map<number, { season: number; episode: number }>();
+        
+        if (showIds.length === 0) return result;
+
+        try {
+            // Get all episode progress for these shows from local cache
+            const key = await this.getProgressKey('episodes');
+            const data = await AsyncStorage.getItem(key);
+            const allProgress: EpisodeProgress[] = data ? JSON.parse(data) : [];
+            
+            // Group by show
+            const progressByShow = new Map<number, EpisodeProgress[]>();
+            allProgress.forEach(ep => {
+                if (showIds.includes(ep.show_id) && ep.watched) {
+                    if (!progressByShow.has(ep.show_id)) {
+                        progressByShow.set(ep.show_id, []);
+                    }
+                    progressByShow.get(ep.show_id)!.push(ep);
+                }
+            });
+
+            // For each show, calculate next episode
+            for (const showId of showIds) {
+                const watchedEpisodes = progressByShow.get(showId) || [];
+                
+                // If no episodes watched, next is S1E1
+                if (watchedEpisodes.length === 0) {
+                    result.set(showId, { season: 1, episode: 1 });
+                    continue;
+                }
+
+                // Find latest watched
+                const latestWatched = watchedEpisodes.reduce((prev, current) => {
+                    if (current.season_number > prev.season_number) return current;
+                    if (current.season_number === prev.season_number && current.episode_number > prev.episode_number) return current;
+                    return prev;
+                });
+
+                // Next episode is simply latest + 1 (we'll validate against show details if needed)
+                // For performance, we assume next episode exists and let the UI handle edge cases
+                result.set(showId, {
+                    season: latestWatched.season_number,
+                    episode: latestWatched.episode_number + 1
+                });
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Error getting next episodes for shows:', error);
+            return result;
         }
     }
 

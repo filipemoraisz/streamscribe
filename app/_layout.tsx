@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { AchievementNotificationProvider } from "../components/AchievementNotificationProvider";
 import { Colors } from "../constants/Colors";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { notificationDeepLinkingService } from "../services/notificationDeepLinking";
@@ -34,24 +35,19 @@ function RootLayoutNav() {
     }
   }, [user, preferences, loading, segments]);
 
-  // Initialize services
+  // Initialize services - NON-BLOCKING for better startup performance
   useEffect(() => {
-    const initializeServices = async () => {
-      try {
-        // Initialize notification services
-        notificationDeepLinkingService.initialize();
-        await notificationManager.initialize();
-        
-        // Initialize real-time manager
-        await realTimeManager.connect();
-        
-        console.log('Services initialized successfully');
-      } catch (error) {
-        console.error('Error initializing services:', error);
-      }
-    };
-
-    initializeServices();
+    // Fire and forget - don't block UI rendering
+    notificationDeepLinkingService.initialize();
+    
+    // Initialize in background without awaiting
+    notificationManager.initialize()
+      .then(() => console.log('Notification manager initialized'))
+      .catch(error => console.error('Error initializing notification manager:', error));
+    
+    realTimeManager.connect()
+      .then(() => console.log('Real-time manager connected'))
+      .catch(error => console.error('Error connecting real-time manager:', error));
     
     return () => {
       notificationDeepLinkingService.cleanup();
@@ -99,7 +95,9 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <RootLayoutNav />
+        <AchievementNotificationProvider>
+          <RootLayoutNav />
+        </AchievementNotificationProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

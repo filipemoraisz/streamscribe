@@ -110,16 +110,16 @@ export default function HomeScreen() {
 
       setWatchlist(watchlistData);
 
-      // Calculate next episodes for watchlist TV shows
-      const nextEps: Record<number, { season: number; episode: number }> = {};
-
+      // Calculate next episodes for watchlist TV shows - OPTIMIZED: Single batch query
       const tvWatchlist = watchlistData.filter(item => item.type === 'tv');
-      await Promise.all(tvWatchlist.map(async (item) => {
-        const nextEpisode = await progressService.getNextEpisodeToWatch(item.id);
-        if (nextEpisode && nextEpisode.season_number && nextEpisode.episode_number) {
-          nextEps[item.id] = { season: nextEpisode.season_number, episode: nextEpisode.episode_number };
-        }
-      }));
+      const showIds = tvWatchlist.map(item => item.id);
+      
+      const nextEpisodesMap = await progressService.getNextEpisodesForShows(showIds);
+      
+      const nextEps: Record<number, { season: number; episode: number }> = {};
+      nextEpisodesMap.forEach((value, key) => {
+        nextEps[key] = value;
+      });
       setNextEpisodes(nextEps);
 
       // Calculate stats
@@ -136,8 +136,17 @@ export default function HomeScreen() {
 
   const loadAllData = async () => {
     setLoading(true);
-    await Promise.all([fetchContent(), fetchUserData()]);
+    
+    // PERFORMANCE: Load user data first (faster, from local storage)
+    // Then load TMDB content in background
+    await fetchUserData();
     setLoading(false);
+    
+    // Load trending content after UI is shown
+    fetchContent().catch(error => {
+      console.error('Error loading content:', error);
+    });
+    
     setRefreshing(false);
   };
 

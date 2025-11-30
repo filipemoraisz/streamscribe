@@ -111,16 +111,16 @@ export default function WatchlistScreen() {
         setShowProgress(progressMap);
       }
 
-      // Fetch next episodes for TV shows
-      const nextEps: Record<number, { season: number; episode: number }> = {};
+      // Fetch next episodes for TV shows - OPTIMIZED: Single batch query instead of N queries
       const tvWatchlist = items.filter(item => item.type === 'tv');
-
-      await Promise.all(tvWatchlist.map(async (item) => {
-        const nextEpisode = await progressService.getNextEpisodeToWatch(item.id);
-        if (nextEpisode && nextEpisode.season_number && nextEpisode.episode_number) {
-          nextEps[item.id] = { season: nextEpisode.season_number, episode: nextEpisode.episode_number };
-        }
-      }));
+      const showIds = tvWatchlist.map(item => item.id);
+      
+      const nextEpisodesMap = await progressService.getNextEpisodesForShows(showIds);
+      
+      const nextEps: Record<number, { season: number; episode: number }> = {};
+      nextEpisodesMap.forEach((value, key) => {
+        nextEps[key] = value;
+      });
       setNextEpisodes(nextEps);
 
     } catch (error) {

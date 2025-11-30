@@ -179,9 +179,10 @@ class StorageService {
         const missingItems = cloudWatchlist.filter(c => !localIds.has(`${c.media_type}-${c.tmdb_id}`));
 
         if (missingItems.length > 0) {
-          // Fetch details for missing items
+          // OPTIMIZED: Batch fetch details for missing items using Promise.all
           const newItems: WatchlistItem[] = [];
-          for (const item of missingItems) {
+          
+          const fetchPromises = missingItems.map(async (item) => {
             try {
               let details;
               if (item.media_type === 'movie') {
@@ -191,7 +192,7 @@ class StorageService {
               }
 
               if (details) {
-                newItems.push({
+                return {
                   id: item.tmdb_id,
                   type: item.media_type as 'movie' | 'tv',
                   title: item.media_type === 'movie' ? (details as any).title : (details as any).name,
@@ -201,12 +202,16 @@ class StorageService {
                   added_date: item.created_at,
                   watched: item.status === 'completed',
                   rewatch_count: item.rewatch_count || 0,
-                });
+                };
               }
             } catch (err) {
               console.error(`Error fetching details for ${item.media_type} ${item.tmdb_id}:`, err);
             }
-          }
+            return null;
+          });
+
+          const results = await Promise.all(fetchPromises);
+          newItems.push(...results.filter((item): item is WatchlistItem => item !== null));
 
           if (newItems.length > 0) {
             localWatchlist = [...localWatchlist, ...newItems];

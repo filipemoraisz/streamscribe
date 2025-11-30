@@ -69,34 +69,36 @@ class ShowStatusNotificationService {
         return [];
       }
 
-      // Check for status updates
-      const statusUpdates: ShowStatusUpdate[] = [];
-
-      for (const show of tvShows) {
+      // OPTIMIZED: Batch check for status updates using Promise.all
+      const statusUpdatePromises = tvShows.map(async (show) => {
         try {
-          const update = await this.checkShowStatusUpdate(show);
-          if (update) {
-            statusUpdates.push(update);
-          }
+          return await this.checkShowStatusUpdate(show);
         } catch (error) {
           console.warn(`Failed to check status for ${show.title}:`, error);
+          return null;
         }
-      }
+      });
+
+      const statusUpdateResults = await Promise.all(statusUpdatePromises);
+      const statusUpdates = statusUpdateResults.filter((update): update is ShowStatusUpdate => update !== null);
 
       if (statusUpdates.length === 0) {
         console.log('No show status updates found');
         return [];
       }
 
-      // Generate notifications for status updates
-      const notifications: ShowStatusNotification[] = [];
-
-      for (const update of statusUpdates) {
-        const notification = await this.createShowStatusNotification(user.id, update);
-        if (notification) {
-          notifications.push(notification);
+      // OPTIMIZED: Batch generate notifications using Promise.all
+      const notificationPromises = statusUpdates.map(async (update) => {
+        try {
+          return await this.createShowStatusNotification(user.id, update);
+        } catch (error) {
+          console.warn(`Failed to create notification for show ${update.showId}:`, error);
+          return null;
         }
-      }
+      });
+
+      const notificationResults = await Promise.all(notificationPromises);
+      const notifications = notificationResults.filter((notification): notification is ShowStatusNotification => notification !== null);
 
       console.log(`Generated ${notifications.length} show status notifications`);
       return notifications;

@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 export interface NotificationHistoryItem {
   id: string;
   user_id: string;
-  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync';
+  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync' | 'achievement_unlock';
   title: string;
   body: string;
   data: any;

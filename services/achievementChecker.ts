@@ -105,17 +105,25 @@ class AchievementChecker {
   /**
    * Queue notifications for unlocked achievements
    * Determines display mode based on tier and queues appropriately
+   * Also saves to notification history
    */
   private async queueAchievementNotifications(
     userAchievements: UserAchievement[]
   ): Promise<void> {
+    console.log(`[AchievementChecker] queueAchievementNotifications called with ${userAchievements.length} achievements`);
+    
     try {
+      // Import notification history service
+      const { notificationHistoryService } = await import('./notificationHistory');
+      
       for (const userAchievement of userAchievements) {
         if (!userAchievement.achievement) {
+          console.warn('[AchievementChecker] Skipping achievement without details');
           continue;
         }
 
         const achievement = userAchievement.achievement;
+        console.log(`[AchievementChecker] Processing achievement: ${achievement.name} (${achievement.tier})`);
         
         // Determine display mode based on tier
         // Gold and Platinum get full-screen, Bronze and Silver get banner
@@ -124,21 +132,45 @@ class AchievementChecker {
             ? 'full_screen' 
             : 'banner';
 
-        // Queue the notification
+        // Queue the in-app notification
         await achievementNotificationsService.queueNotification(
           achievement,
           displayMode
         );
+        console.log(`[AchievementChecker] In-app notification queued`);
+
+        // Save to notification history
+        try {
+          const notificationId = await notificationHistoryService.storeNotification({
+            user_id: userAchievement.user_id,
+            type: 'achievement_unlock',
+            title: `🏆 Achievement Unlocked!`,
+            body: `${achievement.name} - ${achievement.description}`,
+            data: {
+              achievementId: achievement.id,
+              achievementKey: achievement.achievement_key,
+              tier: achievement.tier,
+              points: achievement.points,
+              displayMode,
+            },
+            priority: achievement.tier === 'platinum' || achievement.tier === 'gold' ? 'high' : 'normal',
+            status: 'sent',
+          });
+          console.log(`[AchievementChecker] Saved to notification history with ID: ${notificationId}`);
+        } catch (historyError) {
+          console.error('[AchievementChecker] Error saving to notification history:', historyError);
+        }
 
         console.log(
-          `[AchievementChecker] Queued ${displayMode} notification for achievement: ${achievement.name}`
+          `[AchievementChecker] ✅ Queued ${displayMode} notification for achievement: ${achievement.name}`
         );
       }
 
       // Process the notification queue
       await achievementNotificationsService.processNotificationQueue();
+      console.log('[AchievementChecker] Notification queue processed');
     } catch (error) {
-      console.error('Error queueing achievement notifications:', error);
+      console.error('[AchievementChecker] Error queueing achievement notifications:', error);
     }
   }
 
@@ -151,34 +183,45 @@ class AchievementChecker {
    * Returns array of newly unlocked user achievements
    */
   async checkEpisodeAchievements(userId: string): Promise<UserAchievement[]> {
+    console.log(`[AchievementChecker] checkEpisodeAchievements called for user: ${userId}`);
+    
     try {
       const totalEpisodes = await this.getTotalEpisodesWatched(userId);
+      console.log(`[AchievementChecker] Total episodes watched: ${totalEpisodes}`);
       
       // Get all episode achievements from database
       const { data: achievements, error } = await supabase
         .from('achievements')
-        .select('id, unlock_criteria')
+        .select('id, unlock_criteria, name')
         .eq('category', 'viewing')
         .contains('unlock_criteria', { type: 'episode_count' });
 
       if (error || !achievements) {
-        console.error('Error fetching episode achievements:', error);
+        console.error('[AchievementChecker] Error fetching episode achievements:', error);
         return [];
       }
+
+      console.log(`[AchievementChecker] Found ${achievements.length} episode achievements to check`);
 
       // Check which achievements should be unlocked
       const unlockedIds: string[] = [];
       for (const achievement of achievements) {
         const targetCount = achievement.unlock_criteria.value;
+        console.log(`[AchievementChecker] Checking ${achievement.name}: ${totalEpisodes}/${targetCount}`);
         if (totalEpisodes >= targetCount) {
           unlockedIds.push(achievement.id);
+          console.log(`[AchievementChecker] ✅ ${achievement.name} should be unlocked!`);
         }
       }
 
+      console.log(`[AchievementChecker] ${unlockedIds.length} achievements ready to unlock`);
+
       // Process and unlock achievements with notifications
-      return await this.processAndUnlockAchievements(userId, unlockedIds);
+      const result = await this.processAndUnlockAchievements(userId, unlockedIds);
+      console.log(`[AchievementChecker] ${result.length} NEW achievements unlocked`);
+      return result;
     } catch (error) {
-      console.error('Error in checkEpisodeAchievements:', error);
+      console.error('[AchievementChecker] Error in checkEpisodeAchievements:', error);
       return [];
     }
   }

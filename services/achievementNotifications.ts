@@ -137,34 +137,25 @@ class AchievementNotificationsService {
 
       console.log(`Processing ${pendingNotifications.length} pending achievement notifications`);
 
-      // Process notifications one at a time
+      // DON'T mark as displayed here - let the UI provider do that
+      // Just log that notifications are ready to be shown
       for (const notification of pendingNotifications) {
         try {
-          // Mark as displayed
-          notification.displayed = true;
-
           // Display based on mode
           if (notification.displayMode === 'full_screen') {
             // Full-screen modal will be handled by the UI component
-            // We just emit an event or update state that the UI can listen to
             console.log(`Full-screen notification ready: ${notification.achievement.name}`);
           } else {
             // Banner notification will be handled by the UI component
             console.log(`Banner notification ready: ${notification.achievement.name}`);
           }
-
-          // Update queue in storage
-          await this.saveQueueToStorage();
-
-          // Small delay between notifications to prevent overwhelming the user
-          await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
           console.error('Error processing notification:', error);
         }
       }
 
-      // Clean up displayed notifications after processing
-      await this.cleanupDisplayedNotifications();
+      // NOTE: Notifications will be marked as displayed by the UI provider
+      // after they are actually shown to the user
     } catch (error) {
       console.error('Error processing notification queue:', error);
     } finally {
@@ -398,6 +389,22 @@ class AchievementNotificationsService {
    */
   getPendingNotificationsCount(): number {
     return this.notificationQueue.filter(n => !n.displayed).length;
+  }
+
+  /**
+   * Mark a specific notification as displayed
+   */
+  async markNotificationAsDisplayed(notificationId: string): Promise<void> {
+    try {
+      const notification = this.notificationQueue.find(n => n.id === notificationId);
+      if (notification) {
+        notification.displayed = true;
+        await this.saveQueueToStorage();
+        console.log(`Notification ${notificationId} marked as displayed`);
+      }
+    } catch (error) {
+      console.error('Error marking notification as displayed:', error);
+    }
   }
 
   /**

@@ -29,7 +29,7 @@ export default function AchievementSettingsScreen() {
   const loadPreferences = async () => {
     try {
       setIsLoading(true);
-      const prefs = await achievementNotificationsService.getPreferences();
+      const prefs = await achievementNotificationsService.getNotificationPreferences();
       setPreferences(prefs);
     } catch (error) {
       console.error('Error loading preferences:', error);
@@ -51,7 +51,7 @@ export default function AchievementSettingsScreen() {
     setPreferences(newPreferences);
 
     try {
-      await achievementNotificationsService.updatePreferences(newPreferences);
+      await achievementNotificationsService.updateNotificationPreferences(newPreferences);
     } catch (error) {
       console.error('Error updating preference:', error);
       // Revert on error
@@ -72,7 +72,19 @@ export default function AchievementSettingsScreen() {
           onPress: async () => {
             try {
               setIsSaving(true);
-              const defaultPrefs = await achievementNotificationsService.resetPreferences();
+              // Reset to default preferences
+              const defaultPrefs: AchievementNotificationPreferences = {
+                user_id: preferences?.user_id || '',
+                in_app_full_screen: true,
+                in_app_banner: true,
+                push_notifications: true,
+                sound_enabled: true,
+                haptic_enabled: true,
+                progress_reminders: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+              await achievementNotificationsService.updateNotificationPreferences(defaultPrefs);
               setPreferences(defaultPrefs);
               Alert.alert('Success', 'Settings reset to default');
             } catch (error) {

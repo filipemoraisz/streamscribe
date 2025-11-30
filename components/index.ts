@@ -22,12 +22,14 @@ export { InAppNotificationBanner, useInAppNotifications } from './InAppNotificat
 export { AchievementCard } from './AchievementCard';
 export { AchievementUnlockScreen } from './AchievementUnlockScreen';
 export { AchievementNotificationBanner, useAchievementNotificationBanner } from './AchievementNotificationBanner';
+export { AchievementNotificationProvider } from './AchievementNotificationProvider';
 export { default as AchievementDetailModal } from './AchievementDetailModal';
 export { AchievementStatsCard } from './AchievementStatsCard';
 export { AchievementBadge } from './AchievementBadge';
 
 // Hooks
 export { useNotificationPermissions, useNotificationPromptTrigger } from './hooks/useNotificationPermissions';
+export { useAchievementNotifications } from './hooks/useAchievementNotifications';
 
 // Existing Components
 export { Logo } from './Logo';
