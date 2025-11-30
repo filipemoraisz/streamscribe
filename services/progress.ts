@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 import { tmdbService } from './tmdb';
 import { storageService } from './storage';
 import { achievementChecker } from './achievementChecker';
+import { userActivityService } from './userActivity';
 
 type OfflineAction =
     | { type: 'MARK_WATCHED'; payload: { showId: number; seasonNumber: number; episodeNumber: number; rating?: number } }
@@ -109,6 +110,7 @@ class ProgressService {
             if (!user) return;
 
             const remainingQueue: OfflineAction[] = [];
+            let episodesWatchedCount = 0; // Track how many episodes were synced
 
             for (const action of queue) {
                 try {
@@ -128,6 +130,8 @@ class ProgressService {
                         }, { onConflict: 'user_id, show_id, season_number, episode_number' });
 
                         if (error) throw error;
+                        
+                        episodesWatchedCount++;
 
                     } else if (action.type === 'MARK_UNWATCHED') {
                         const { showId, seasonNumber, episodeNumber } = action.payload;
@@ -170,6 +174,17 @@ class ProgressService {
 
             // Update queue with remaining items
             await AsyncStorage.setItem(this.QUEUE_KEY, JSON.stringify(remainingQueue));
+
+            // Update streak if episodes were synced
+            if (episodesWatchedCount > 0) {
+                console.log(`[Progress] Synced ${episodesWatchedCount} episodes, updating streak`);
+                try {
+                    await userActivityService.updateStreak(user.id);
+                    console.log('[Progress] ✅ Streak updated after offline sync');
+                } catch (streakError) {
+                    console.error('[Progress] Error updating streak after sync:', streakError);
+                }
+            }
 
             // Refresh local cache from server to ensure consistency
             if (remainingQueue.length === 0) {
@@ -284,7 +299,7 @@ class ProgressService {
             await AsyncStorage.setItem(key, JSON.stringify(filtered));
             await this.updateShowProgressLocal(showId);
 
-            // 2. Sync to Supabase immediately (for achievement checking)
+            // 2. Sync to Supabase immediately (for achievement checking and streak tracking)
             if (userId !== 'guest') {
                 console.log('[Progress] Syncing episode to Supabase for achievement checking');
                 
@@ -314,6 +329,26 @@ class ProgressService {
                             });
                         } else {
                             console.log('[Progress] ✅ Episode synced to Supabase successfully');
+                            
+                            // 3. Update streak tracking and activity metrics (only when online and after successful sync)
+                            console.log(`[Progress] Updating streak and activity tracking for user: ${userId}`);
+                            try {
+                                // Get episode runtime if available
+                                let runtime = 45; // Default to 45 minutes
+                                try {
+                                    const episodeDetails = await tmdbService.getEpisodeDetails(showId, seasonNumber, episodeNumber);
+                                    runtime = episodeDetails?.runtime || 45;
+                                } catch (runtimeError) {
+                                    console.warn('[Progress] Could not get episode runtime, using default');
+                                }
+                                
+                                // Track episode watched event (updates streak, episode count, and hours)
+                                await userActivityService.trackEpisodeWatched(userId, runtime);
+                                console.log(`[Progress] ✅ Streak and activity tracking updated`);
+                            } catch (streakError) {
+                                console.error('[Progress] Error updating streak:', streakError);
+                                // Don't fail the main operation if streak update fails
+                            }
                         }
                     } catch (syncError) {
                         console.error('[Progress] Sync error:', syncError);
@@ -326,6 +361,7 @@ class ProgressService {
                 } else {
                     // Offline: queue for later
                     console.log('[Progress] Offline - queuing for later sync');
+                    console.log('[Progress] Offline - streak will be updated when connection is restored');
                     await this.addToQueue({
                         type: 'MARK_WATCHED',
                         payload: { showId, seasonNumber, episodeNumber, rating }
@@ -333,7 +369,7 @@ class ProgressService {
                 }
             }
 
-            // 3. Check achievements (viewing and streak)
+            // 4. Check achievements (viewing and streak)
             if (userId !== 'guest') {
                 console.log(`[Progress] Checking achievements for user: ${userId}`);
                 try {
@@ -580,13 +616,70 @@ class ProgressService {
             await AsyncStorage.setItem(key, JSON.stringify(updatedProgress));
             await this.updateShowProgressLocal(showId);
 
-            // 2. Queue for Sync (Bulk)
+            // 2. Queue for Sync (Bulk) and update streak
             if (userId !== 'guest') {
-                for (let i = 1; i <= episodeNumber; i++) {
-                    await this.addToQueue({
-                        type: 'MARK_WATCHED',
-                        payload: { showId, seasonNumber, episodeNumber: i }
-                    });
+                // Check if online
+                const netInfo = await NetInfo.fetch();
+                
+                if (netInfo.isConnected) {
+                    // Sync directly to Supabase
+                    try {
+                        const updates = [];
+                        for (let i = 1; i <= episodeNumber; i++) {
+                            updates.push({
+                                user_id: userId,
+                                show_id: showId,
+                                season_number: seasonNumber,
+                                episode_number: i,
+                                watched: true,
+                                watched_date: now,
+                                updated_at: now
+                            });
+                        }
+                        
+                        const { error } = await supabase.from('episode_progress').upsert(updates, {
+                            onConflict: 'user_id, show_id, season_number, episode_number'
+                        });
+                        
+                        if (error) {
+                            console.error('[Progress] Error syncing batch episodes:', error);
+                            // Fallback to queue
+                            for (let i = 1; i <= episodeNumber; i++) {
+                                await this.addToQueue({
+                                    type: 'MARK_WATCHED',
+                                    payload: { showId, seasonNumber, episodeNumber: i }
+                                });
+                            }
+                        } else {
+                            console.log(`[Progress] ✅ Batch synced ${episodeNumber} episodes`);
+                            
+                            // Update streak after batch sync
+                            try {
+                                await userActivityService.updateStreak(userId);
+                                console.log('[Progress] ✅ Streak updated after batch watch');
+                            } catch (streakError) {
+                                console.error('[Progress] Error updating streak:', streakError);
+                            }
+                        }
+                    } catch (syncError) {
+                        console.error('[Progress] Batch sync error:', syncError);
+                        // Fallback to queue
+                        for (let i = 1; i <= episodeNumber; i++) {
+                            await this.addToQueue({
+                                type: 'MARK_WATCHED',
+                                payload: { showId, seasonNumber, episodeNumber: i }
+                            });
+                        }
+                    }
+                } else {
+                    // Offline: queue for later
+                    console.log('[Progress] Offline - queuing batch episodes for later sync');
+                    for (let i = 1; i <= episodeNumber; i++) {
+                        await this.addToQueue({
+                            type: 'MARK_WATCHED',
+                            payload: { showId, seasonNumber, episodeNumber: i }
+                        });
+                    }
                 }
             }
 

@@ -17,6 +17,7 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.md
 
 # Metro
 .metro-health-check*
@@ -44,3 +45,5 @@ constants/Config.ts
 
 # Scripts with secrets
 test-tmdb-providers.js
+
+

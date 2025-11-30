@@ -43,3 +43,12 @@ export type { MonthlyRecommendation, ProviderRecommendation } from '../services/
 export type { StreamingOption, WatchlistItem, NotificationPayload, NotificationPreferences, LocalNotification } from '../types';
 export type { InAppNotification } from './InAppNotificationBanner';
 
+
+// Profile Components
+export { StatsGrid } from './profile/StatsGrid';
+export { QuickActionsGrid } from './profile/QuickActionsGrid';
+export type { QuickAction } from './profile/QuickActionsGrid';
+export { QUICK_ACTIONS } from './profile/quickActionsConfig';
+export { AchievementShowcase } from './profile/AchievementShowcase';
+export { FeaturedAchievements } from './profile/FeaturedAchievements';
+export { FeaturedAchievementCard } from './profile/FeaturedAchievementCard';

@@ -477,3 +477,58 @@ export const ACHIEVEMENT_ICONS = {
     platinum: { name: 'speedometer', library: 'Ionicons' as IconLibrary }
   }
 } as const;
+
+// Profile Redesign Types
+
+export interface UserStats {
+  // Streak data
+  currentStreak: number;
+  longestStreak: number;
+  lastStreakDate: string | null;
+  
+  // Viewing data
+  totalEpisodes: number;
+  totalHoursWatched: number;
+  showsCompleted: number;
+  
+  // Achievement data
+  achievementPoints: number;
+  achievementsUnlocked: number;
+  achievementsTotal: number;
+  
+  // Impact data (future)
+  totalSavings: number;
+  optimizedHours: number;
+  monthlyEfficiency: number;
+}
+
+export interface UserActivityTracking {
+  user_id: string;
+  last_app_open: string | null;
+  last_episode_watched: string | null;
+  last_watchlist_update: string | null;
+  total_app_opens: number;
+  total_episodes_watched: number;
+  total_watchlist_updates: number;
+  total_hours_watched: number;
+  average_session_length: number;
+  preferred_watch_time: string | null;
+  weekly_watch_pattern: number[];
+  engagement_score: number;
+  current_streak: number;
+  longest_streak: number;
+  last_streak_date: string | null;
+  total_savings: number;
+  monthly_efficiency: number;
+  optimized_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuickAction {
+  id: string;
+  icon: string;
+  label: string;
+  route: string;
+  badge?: number; // Optional notification badge
+}
