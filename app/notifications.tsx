@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,10 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { useAuth } from '../contexts/AuthContext';
 import { notificationHistoryService } from '../services/notificationHistory';
@@ -27,9 +26,24 @@ interface NotificationItem {
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Set header right button
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => router.push('/notification-settings' as any)}
+          style={styles.headerButton}
+        >
+          <Ionicons name="settings-outline" size={24} color={Colors.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   // Load notification history
   const loadNotifications = useCallback(async (showRefresh = true) => {
@@ -197,11 +211,11 @@ export default function NotificationsScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading notifications...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -227,15 +241,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Notifications</Text>
-        {/* Temporary test button */}
-        <TouchableOpacity onPress={createTestNotification} style={styles.testButton}>
-          <Text style={styles.testButtonText}>Add Test</Text>
-        </TouchableOpacity>
-      </View>
-
+    <View style={styles.container}>
       <FlatList
         data={notifications}
         renderItem={renderNotificationItem}
@@ -262,7 +268,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={notifications.length === 0 ? styles.emptyListContainer : undefined}
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -271,17 +277,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.text,
+  headerButton: {
+    padding: 8,
+    marginRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -377,17 +377,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 22,
-  },
-  testButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  testButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
   },
   createTestButton: {
     backgroundColor: Colors.primary,
