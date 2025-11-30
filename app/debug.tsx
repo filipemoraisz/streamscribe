@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { DebugStorage, debugAll } from '../utils/debugStorage';
@@ -21,7 +21,7 @@ export default function DebugScreen() {
     try {
       console.log(`\n=== ${title.toUpperCase()} ===`);
       const result = await command();
-      
+
       // Capture console output for display
       let displayText = `=== ${title} ===\n`;
       if (Array.isArray(result)) {
@@ -34,7 +34,7 @@ export default function DebugScreen() {
       } else {
         displayText += 'No data found';
       }
-      
+
       setOutput(prev => prev + displayText + '\n\n');
     } catch (error) {
       setOutput(prev => prev + `Error in ${title}: ${error}\n\n`);
@@ -86,7 +86,7 @@ export default function DebugScreen() {
           headerBackTitle: 'Back',
         }}
       />
-      
+
       <ScrollView style={styles.scrollView}>
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -196,7 +196,7 @@ export default function DebugScreen() {
           <Text style={styles.infoText}>
             • streamscribe_users - All registered users{'\n'}
             • streamscribe_current_user - Currently logged in user{'\n'}
-            • streamscribe_watchlist_[userId] - User's watchlist{'\n'}
+            • streamscribe_watchlist_[userId] - User&apos;s watchlist{'\n'}
             • streamscribe_episodes_progress_[userId] - Episode tracking{'\n'}
             • streamscribe_shows_progress_[userId] - Show progress
           </Text>

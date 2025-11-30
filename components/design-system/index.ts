@@ -13,5 +13,5 @@ export type { BrandInputProps } from './BrandInput';
 export { PrimaryCTA } from './PrimaryCTA';
 export type { PrimaryCTAProps } from './PrimaryCTA';
 
-export { AchievementBadge } from './AchievementBadge';
-export type { AchievementBadgeProps } from './AchievementBadge';
+export { AchievementBadge as UIAchievementBadge } from './AchievementBadge';
+export type { AchievementBadgeProps as UIAchievementBadgeProps } from './AchievementBadge';

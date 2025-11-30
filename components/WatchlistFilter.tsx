@@ -18,49 +18,50 @@ export const WatchlistFilter = ({ activeFilter, onFilterChange }: WatchlistFilte
     ];
 
     return (
-        <View style={styles.container}>
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-            >
-                {filters.map((filter) => (
-                    <TouchableOpacity
-                        key={filter.id}
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.container}
+            contentContainerStyle={styles.scrollContent}
+        >
+            {filters.map((filter) => (
+                <TouchableOpacity
+                    key={filter.id}
+                    style={[
+                        styles.chip,
+                        activeFilter === filter.id && styles.chipActive,
+                    ]}
+                    onPress={() => onFilterChange(filter.id)}
+                >
+                    <Text
                         style={[
-                            styles.chip,
-                            activeFilter === filter.id && styles.chipActive,
+                            styles.chipText,
+                            activeFilter === filter.id && styles.chipTextActive,
                         ]}
-                        onPress={() => onFilterChange(filter.id)}
                     >
-                        <Text
-                            style={[
-                                styles.chipText,
-                                activeFilter === filter.id && styles.chipTextActive,
-                            ]}
-                        >
-                            {filter.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-        </View>
+                        {filter.label}
+                    </Text>
+                </TouchableOpacity>
+            ))}
+        </ScrollView>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        paddingVertical: 12,
-        backgroundColor: Colors.background,
+        paddingTop: 8,
+        paddingBottom: 12,
+        backgroundColor: 'transparent',
     },
     scrollContent: {
-        paddingHorizontal: 16,
+        paddingLeft: 16,
+        paddingRight: 16,
         gap: 8,
     },
     chip: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingHorizontal: 15,
+        paddingVertical: 6,
+        borderRadius: 16,
         backgroundColor: Colors.surface,
         borderWidth: 1,
         borderColor: Colors.border,
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary,
     },
     chipText: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '500',
         color: Colors.textSecondary,
     },

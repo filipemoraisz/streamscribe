@@ -1,5 +1,13 @@
 // Design System Components
-export * from './design-system';
+// Design System Components
+export { BrandCard } from './design-system';
+export type { BrandCardProps } from './design-system';
+export { BrandInput } from './design-system';
+export type { BrandInputProps } from './design-system';
+export { PrimaryCTA } from './design-system';
+export type { PrimaryCTAProps } from './design-system';
+export { UIAchievementBadge } from './design-system';
+export type { UIAchievementBadgeProps } from './design-system';
 
 // Recommendation Feature Components
 export { ProviderDetailsModal } from './ProviderDetailsModal';
@@ -9,6 +17,14 @@ export { RecommendationCard } from './RecommendationCard';
 // Notification Components
 export { NotificationPermissionModal } from './NotificationPermissionModal';
 export { InAppNotificationBanner, useInAppNotifications } from './InAppNotificationBanner';
+
+// Achievement Components
+export { AchievementCard } from './AchievementCard';
+export { AchievementUnlockScreen } from './AchievementUnlockScreen';
+export { AchievementNotificationBanner, useAchievementNotificationBanner } from './AchievementNotificationBanner';
+export { default as AchievementDetailModal } from './AchievementDetailModal';
+export { AchievementStatsCard } from './AchievementStatsCard';
+export { AchievementBadge } from './AchievementBadge';
 
 // Hooks
 export { useNotificationPermissions, useNotificationPromptTrigger } from './hooks/useNotificationPermissions';

@@ -6,7 +6,7 @@ import { MediaCard } from '../components/MediaCard';
 import { Colors } from '../constants/Colors';
 import { progressService } from '../services/progress';
 import { storageService } from '../services/storage';
-import { ShowProgress, WatchlistItem } from '../types';
+import { WatchlistItem } from '../types';
 
 const { width } = Dimensions.get('window');
 const numColumns = 3;
@@ -211,23 +211,24 @@ const styles = StyleSheet.create({
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 12,
         gap: 8,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: '600',
+        fontWeight: 'bold',
         color: Colors.text,
     },
     cardContainer: {
-        marginBottom: 16,
+        marginBottom: GAP,
     },
     emptyState: {
-        padding: 32,
         alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
     },
     emptyText: {
-        color: Colors.textSecondary,
         fontSize: 16,
-    }
+        color: Colors.textMuted,
+    },
 });

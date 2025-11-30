@@ -166,11 +166,6 @@ export default function DetailsScreen() {
     }
   };
 
-  const handleContinueWatching = () => {
-    if (!showProgress) return;
-    router.push(`/season/${showProgress.show_id}/${showProgress.current_season}`);
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>

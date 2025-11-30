@@ -236,9 +236,9 @@ export default function SearchScreen() {
       {/* Empty state - no results (only show when searching) */}
       {searchQuery.trim() && searchResults.length === 0 && !loading && !error && (
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyTitle}>No Results Found</Text>
+          <Text style={styles.emptyText}>No results found for &quot;{searchQuery}&quot;</Text>
           <Text style={styles.emptyText}>
-            No movies or TV shows found for "{searchQuery}". Try a different search term.
+            No movies or TV shows found for &quot;{searchQuery}&quot;. Try a different search term.
           </Text>
         </View>
       )}

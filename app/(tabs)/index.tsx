@@ -10,26 +10,29 @@ import { optimizerService } from '@/services/optimizer';
 import { progressService } from '@/services/progress';
 import { storageService } from '@/services/storage';
 import { tmdbService } from '@/services/tmdb';
-import { useAuth } from '@/contexts/AuthContext';
 import { Movie, TVShow, WatchlistItem } from '@/types';
-import { Link, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   ActivityIndicator,
   Image,
   RefreshControl,
-  ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NotificationBadge } from '@/components/NotificationBadge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StreamScribeIcon } from '@/components/StreamScribeIcon';
+import { BlurView } from 'expo-blur';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue
+} from 'react-native-reanimated';
 
 type Section = {
   title: string;
@@ -37,10 +40,11 @@ type Section = {
   type: 'movie' | 'tv';
 };
 
+const HEADER_HEIGHT = 60;
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const realTimeStatus = useRealTimeStatus();
-  const { user } = useAuth();
   const { unreadCount: unreadNotifications } = useNotificationCount();
   const [sections, setSections] = useState<Section[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -52,6 +56,21 @@ export default function HomeScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const scrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(scrollY.value, [0, 100], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity,
+    };
+  });
 
 
 
@@ -85,16 +104,14 @@ export default function HomeScreen() {
 
   const fetchUserData = async () => {
     try {
-      const [watchlistData, allProgress] = await Promise.all([
+      const [watchlistData] = await Promise.all([
         storageService.getWatchlist(),
-        progressService.getAllShowsProgress(),
       ]);
 
       setWatchlist(watchlistData);
 
       // Calculate next episodes for watchlist TV shows
       const nextEps: Record<number, { season: number; episode: number }> = {};
-      const progressMap = new Map(allProgress.map(p => [p.show_id, p]));
 
       const tvWatchlist = watchlistData.filter(item => item.type === 'tv');
       await Promise.all(tvWatchlist.map(async (item) => {
@@ -240,89 +257,109 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* Connection Status Banner */}
-      <ConnectionBanner 
+      <ConnectionBanner
         isConnected={realTimeStatus.isConnected}
         isConnecting={realTimeStatus.isConnecting}
       />
-      
-      <ScrollView
+
+      <Animated.ScrollView
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         style={styles.scrollContainer}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 10, paddingBottom: 100 },
+          { paddingTop: HEADER_HEIGHT + insets.top + 20 }
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            progressViewOffset={HEADER_HEIGHT + insets.top}
+          />
         }
       >
-        <View style={styles.header}>
-        <View style={styles.brandContainer}>
-          {/* App Icon */}
-          <Image
-            source={require('@/assets/images/streamscribe_round.png')}
-            style={styles.appIcon}
-            resizeMode="contain"
+        <ImpactHeader
+          totalSavings={stats.savings}
+          efficiency={stats.efficiency}
+          streak={stats.streak}
+        />
+
+
+
+        {watchlist.length > 0 && (
+          <MediaSection
+            title="Your Watchlist"
+            data={watchlist}
+            type="movie" // Placeholder, handled by MediaCard
+            onItemPress={(item) => handleItemPress(item, item.type as 'movie' | 'tv' || 'movie')}
+            onWatchlistPress={(item) => handleWatchlistPress(item, item.type as 'movie' | 'tv' || 'movie')}
+            isInWatchlist={(id) => isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv')}
+            nextEpisodes={nextEpisodes}
+            onNextEpisodePress={handleNextEpisodePress}
+            onMovieActionPress={handleMovieActionPress}
           />
-          
-          <Image
-            source={require('@/assets/images/logo-text-white.png')}
-            style={styles.logo}
-            resizeMode="contain"
+        )}
+
+        {/* Real-time Recommendations */}
+        <RealTimeRecommendationWidget
+          onItemPress={(item, type) => handleItemPress(item, type)}
+        />
+
+        {sections.map((section) => (
+          <MediaSection
+            key={section.title}
+            title={section.title}
+            data={section.data}
+            type={section.type}
+            onItemPress={(item) => handleItemPress(item, section.type)}
+            onWatchlistPress={(item) => handleWatchlistPress(item, section.type)}
+            isInWatchlist={(id) => isInWatchlist(id, section.type)}
           />
-        </View>
-        
-        {/* Notification Button */}
-        <TouchableOpacity 
-          style={styles.notificationButton}
-          onPress={() => router.push('/notifications')}
-        >
-          <Ionicons name="notifications" size={24} color={Colors.text} />
-          <View style={styles.badgeContainer}>
-            <NotificationBadge count={unreadNotifications} size="small" />
+        ))}
+
+      </Animated.ScrollView>
+
+      {/* Sticky Header with Blur */}
+      <Animated.View
+        style={[
+          styles.headerContainer,
+          { height: HEADER_HEIGHT + insets.top, paddingTop: insets.top }
+        ]}
+      >
+        <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
+          <BlurView
+            intensity={80}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+
+        <View style={styles.headerContent}>
+          <View style={styles.brandContainer}>
+            <Image
+              source={require('@/assets/images/streamscribe_round.png')}
+              style={styles.appIcon}
+              resizeMode="contain"
+            />
+            <Image
+              source={require('@/assets/images/logo-text-white.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
-        </TouchableOpacity>
-      </View>
 
-      <ImpactHeader
-        totalSavings={stats.savings}
-        efficiency={stats.efficiency}
-        streak={stats.streak}
-      />
-
-
-
-      {watchlist.length > 0 && (
-        <MediaSection
-          title="Your Watchlist"
-          data={watchlist}
-          type="movie" // Placeholder, handled by MediaCard
-          onItemPress={(item) => handleItemPress(item, item.type as 'movie' | 'tv' || 'movie')}
-          onWatchlistPress={(item) => handleWatchlistPress(item, item.type as 'movie' | 'tv' || 'movie')}
-          isInWatchlist={(id) => isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv')}
-          nextEpisodes={nextEpisodes}
-          onNextEpisodePress={handleNextEpisodePress}
-          onMovieActionPress={handleMovieActionPress}
-        />
-      )}
-
-      {/* Real-time Recommendations */}
-      <RealTimeRecommendationWidget
-        onItemPress={(item, type) => handleItemPress(item, type)}
-      />
-
-      {sections.map((section) => (
-        <MediaSection
-          key={section.title}
-          title={section.title}
-          data={section.data}
-          type={section.type}
-          onItemPress={(item) => handleItemPress(item, section.type)}
-          onWatchlistPress={(item) => handleWatchlistPress(item, section.type)}
-          isInWatchlist={(id) => isInWatchlist(id, section.type)}
-        />
-      ))}
-
-      </ScrollView>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications" size={24} color={Colors.text} />
+            <View style={styles.badgeContainer}>
+              <NotificationBadge count={unreadNotifications} size="small" />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -340,14 +377,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
-  header: {
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  headerContent: {
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 10,
   },
   brandContainer: {
     flexDirection: 'row',

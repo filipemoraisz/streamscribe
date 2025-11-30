@@ -11,6 +11,12 @@ export { notificationSyncService } from './notificationSync';
 export { recommendationService } from './recommendations';
 export type { MonthlyRecommendation, ProviderRecommendation } from './recommendations';
 
+// Achievements Service
+export { achievementsService } from './achievements';
+export { achievementChecker } from './achievementChecker';
+export { achievementNotificationsService } from './achievementNotifications';
+export { achievementBackgroundTasks } from './achievementBackgroundTasks';
+
 // Types (re-export for convenience)
 export type {
     Episode, EpisodeProgress, Movie, Season,

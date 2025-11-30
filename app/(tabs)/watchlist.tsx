@@ -1,8 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { router, Stack } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import Animated, { 
+  Extrapolation, 
+  interpolate, 
+  useAnimatedScrollHandler, 
+  useAnimatedStyle, 
+  useSharedValue 
+} from 'react-native-reanimated';
 import { MediaCard } from '../../components/MediaCard';
 import { FilterType, WatchlistFilter } from '../../components/WatchlistFilter';
 import { ConnectionBanner } from '../../components/ConnectionBanner';
@@ -19,13 +28,30 @@ const numColumns = 2;
 const GAP = 16;
 const PADDING = 16;
 const itemWidth = (width - (PADDING * 2) - (GAP * (numColumns - 1))) / numColumns;
+const HEADER_HEIGHT = 110; // Header + Filter height
 
 export default function WatchlistScreen() {
   const { user } = useAuth();
   const realTimeStatus = useRealTimeStatus();
+  const insets = useSafeAreaInsets();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [showProgress, setShowProgress] = useState<Map<number, ShowProgress>>(new Map());
   const [filter, setFilter] = useState<FilterType>('all');
+  
+  const scrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(scrollY.value, [0, 100], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity,
+    };
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -313,50 +339,37 @@ export default function WatchlistScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => loadWatchlist()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Connection Status Banner */}
       <ConnectionBanner 
         isConnected={realTimeStatus.isConnected}
         isConnecting={realTimeStatus.isConnecting}
       />
 
-      {/* Custom Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Watchlist</Text>
-        <TouchableOpacity
-          onPress={() => router.push('/history')}
-          style={styles.archiveButton}
-        >
-          <Ionicons name="archive-outline" size={24} color={Colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
-
       {activeItems.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View style={[styles.emptyContainer, { paddingTop: HEADER_HEIGHT + insets.top }]}>
           <Ionicons name="film-outline" size={64} color={Colors.textMuted} />
           <Text style={styles.emptyTitle}>No content found</Text>
           <Text style={styles.emptyText}>
@@ -366,23 +379,66 @@ export default function WatchlistScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
           data={activeItems}
           renderItem={renderItem}
           keyExtractor={(item) => `${item.type}-${item.id}`}
           numColumns={numColumns}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            { paddingTop: HEADER_HEIGHT + insets.top + 16 }
+          ]}
           columnWrapperStyle={[styles.row, { gap: GAP }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={onRefresh}
               tintColor={Colors.primary}
+              progressViewOffset={HEADER_HEIGHT + insets.top}
             />
           }
         />
       )}
-    </SafeAreaView>
+
+      {/* Sticky Header with Blur */}
+      <Animated.View
+        style={[
+          styles.headerContainer,
+          { height: HEADER_HEIGHT + insets.top, paddingTop: insets.top }
+        ]}
+      >
+        <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
+          <BlurView
+            intensity={80}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+
+        <View style={styles.headerContent}>
+          <View style={styles.header}>
+            <View style={styles.brandContainer}>
+              <Image
+                source={require('@/assets/images/streamscribe_round.png')}
+                style={styles.appIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.headerTitle}>Watchlist</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/history')}
+              style={styles.archiveButton}
+            >
+              <Ionicons name="list-outline" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -391,13 +447,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  headerContent: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.background,
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  appIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
   },
   headerTitle: {
     fontSize: 28,

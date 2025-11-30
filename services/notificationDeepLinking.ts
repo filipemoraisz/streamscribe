@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Linking } from 'react-native';
 
 export interface NotificationPayload {
-  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync' | 'show_status';
+  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync' | 'show_status' | 'achievement_unlock';
   showId?: number;
   seasonNumber?: number;
   episodeNumber?: number;
@@ -11,6 +11,8 @@ export interface NotificationPayload {
   contentType?: 'movie' | 'tv';
   action?: string;
   url?: string;
+  achievementId?: string;
+  achievementKey?: string;
 }
 
 /**
@@ -88,6 +90,14 @@ export class NotificationDeepLinkingService {
         this.navigateToWatchlist();
       } else if (path === '/recommendations') {
         this.navigateToRecommendations();
+      } else if (path === '/achievements') {
+        this.navigateToAchievements();
+      } else if (path.startsWith('/achievements/')) {
+        const pathParts = path.split('/');
+        const achievementId = pathParts[2];
+        if (achievementId) {
+          this.navigateToAchievementDetail(achievementId);
+        }
       }
     } catch (error) {
       console.error('Error parsing deep link:', error);
@@ -134,6 +144,14 @@ export class NotificationDeepLinkingService {
 
         case 'progress_sync':
           this.navigateToWatchlist();
+          break;
+
+        case 'achievement_unlock':
+          if (payload.achievementId) {
+            this.navigateToAchievementDetail(payload.achievementId);
+          } else {
+            this.navigateToAchievements();
+          }
           break;
 
         default:
@@ -183,6 +201,24 @@ export class NotificationDeepLinkingService {
   }
 
   /**
+   * Navigate to achievements screen
+   */
+  private navigateToAchievements(): void {
+    router.push('/achievements-list');
+  }
+
+  /**
+   * Navigate to achievement detail
+   * Note: This will navigate to achievements screen and the detail modal
+   * will need to be opened via a query parameter or state management
+   */
+  private navigateToAchievementDetail(achievementId: string): void {
+    // For now, navigate to achievements screen
+    // The screen can check for a query parameter to open the detail modal
+    router.push(`/achievements-list?achievementId=${achievementId}`);
+  }
+
+  /**
    * Generate deep link URL for notification
    */
   generateDeepLink(payload: NotificationPayload): string {
@@ -222,6 +258,13 @@ export class NotificationDeepLinkingService {
 
       case 'progress_sync':
         return `${baseUrl}watchlist`;
+
+      case 'achievement_unlock':
+        if (payload.achievementId) {
+          return `${baseUrl}achievements/${payload.achievementId}`;
+        } else {
+          return `${baseUrl}achievements`;
+        }
 
       default:
         return baseUrl;
@@ -298,6 +341,23 @@ export class NotificationDeepLinkingService {
         });
         break;
 
+      case 'achievement_unlock':
+        actions.push({
+          identifier: 'view_achievement',
+          buttonTitle: 'View Achievement',
+          options: {
+            opensAppToForeground: true,
+          },
+        });
+        actions.push({
+          identifier: 'view_all_achievements',
+          buttonTitle: 'View All',
+          options: {
+            opensAppToForeground: true,
+          },
+        });
+        break;
+
       default:
         actions.push({
           identifier: 'open_app',
@@ -321,8 +381,13 @@ export class NotificationDeepLinkingService {
       case 'view_content':
       case 'view_recommendation':
       case 'view_show':
+      case 'view_achievement':
       case 'open_app':
         this.navigateFromPayload(payload);
+        break;
+
+      case 'view_all_achievements':
+        this.navigateToAchievements();
         break;
 
       case 'mark_watched':

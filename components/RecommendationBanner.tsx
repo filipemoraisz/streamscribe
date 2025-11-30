@@ -30,7 +30,7 @@ export const RecommendationBanner: React.FC<RecommendationBannerProps> = ({
         <View style={styles.content}>
           <Text style={styles.title}>New Recommendations Available!</Text>
           <Text style={styles.subtitle}>
-            We've analyzed your watchlist and found great streaming deals for this month.
+            We&apos;ve analyzed your watchlist and found great streaming deals for this month.
           </Text>
         </View>
 

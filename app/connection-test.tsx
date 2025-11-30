@@ -35,12 +35,12 @@ export default function ConnectionTestScreen() {
     // Start offline
     setIsConnected(false);
     setIsConnecting(false);
-    
+
     // After 2 seconds, start reconnecting
     setTimeout(() => {
       setIsConnecting(true);
     }, 2000);
-    
+
     // After 4 seconds, go online (will show "Synced" for 3 seconds)
     setTimeout(() => {
       setIsConnecting(false);
@@ -51,7 +51,7 @@ export default function ConnectionTestScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Connection Banner - This is what we're testing */}
-      <ConnectionBanner 
+      <ConnectionBanner
         isConnected={isConnected}
         isConnecting={isConnecting}
       />
@@ -130,21 +130,21 @@ export default function ConnectionTestScreen() {
             <Text style={styles.infoTitle}>Full Cycle Timeline:</Text>
             <Text style={styles.infoText}>• 0s: Goes offline</Text>
             <Text style={styles.infoText}>• 2s: Starts reconnecting</Text>
-            <Text style={styles.infoText}>• 4s: Connects (shows "Synced")</Text>
-            <Text style={styles.infoText}>• 7s: "Synced" fades out</Text>
+            <Text style={styles.infoText}>• 4s: Connects (shows &quot;Synced&quot;)</Text>
+            <Text style={styles.infoText}>• 7s: &quot;Synced&quot; fades out</Text>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Expected Behavior</Text>
-          
+
           <View style={styles.behaviorCard}>
             <View style={styles.behaviorHeader}>
               <View style={[styles.stateDot, { backgroundColor: '#F44336' }]} />
               <Text style={styles.behaviorTitle}>Offline State</Text>
             </View>
             <Text style={styles.behaviorText}>
-              Black banner with white text: "You're offline. Changes will sync when online."
+              Black banner with white text: &quot;You&apos;re offline. Changes will sync when online.&quot;
             </Text>
           </View>
 
@@ -154,7 +154,7 @@ export default function ConnectionTestScreen() {
               <Text style={styles.behaviorTitle}>Reconnecting State</Text>
             </View>
             <Text style={styles.behaviorText}>
-              Black banner with white text: "Reconnecting..."
+              Black banner with white text: &quot;Reconnecting...&quot;
             </Text>
           </View>
 
@@ -164,7 +164,7 @@ export default function ConnectionTestScreen() {
               <Text style={styles.behaviorTitle}>Synced State</Text>
             </View>
             <Text style={styles.behaviorText}>
-              Black banner with GREEN text: "Synced." (fades out after 3 seconds)
+              Black banner with GREEN text: &quot;Synced.&quot; (fades out after 3 seconds)
             </Text>
           </View>
 
@@ -185,7 +185,7 @@ export default function ConnectionTestScreen() {
             This simulates your actual app content. The banner should appear at the very top,
             above all content, and respect the safe area (notch).
           </Text>
-          
+
           {[1, 2, 3, 4, 5].map((i) => (
             <View key={i} style={styles.demoCard}>
               <Text style={styles.demoCardText}>Content Card {i}</Text>

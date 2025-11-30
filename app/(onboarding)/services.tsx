@@ -1,43 +1,40 @@
-import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { useAuth } from '../../contexts/AuthContext';
 import { authService } from '../../services/auth';
 
 // Mock list of popular services
 const POPULAR_SERVICES = [
-    { id: '8', name: 'Netflix', logo: '/t2yyOv40HZeVfYjJsSlp2rhr6sf.jpg' },
-    { id: '9', name: 'Amazon Prime Video', logo: '/emthp39XA2YScoU8vk5gafjQ2sV.jpg' },
-    { id: '337', name: 'Disney Plus', logo: '/7qe34O2pBaJ79hTw469wdgQDv6n.jpg' },
-    { id: '1899', name: 'Max', logo: '/6Q3ZYbjqsoLxi0p763C998r818c.jpg' },
-    { id: '15', name: 'Hulu', logo: '/zxrVdFjIjLqkfnwyghnfkwW3qbk.jpg' },
-    { id: '384', name: 'Peacock', logo: '/gN6K2lW010E08W53vP6e9x81f.jpg' },
-    { id: '350', name: 'Apple TV Plus', logo: '/2E03IAfX1V0OlqJkUPiM6e8jD6.jpg' },
-    { id: '531', name: 'Paramount Plus', logo: '/h5DcR0J2EESLitnhR8xLG1QYlAo.jpg' },
+    { id: 'netflix', name: 'Netflix', icon: 'https://image.tmdb.org/t/p/original/t2yyOv40HZeVlLjDaoVHO4NsZ0I.jpg' },
+    { id: 'amazon', name: 'Prime Video', icon: 'https://image.tmdb.org/t/p/original/emthp39XA2YScoYL1p0sdbAH2WA.jpg' },
+    { id: 'disney', name: 'Disney+', icon: 'https://image.tmdb.org/t/p/original/7qe34O5qW89K8OSUP0D5j96vxl5.jpg' },
+    { id: 'hbo', name: 'HBO Max', icon: 'https://image.tmdb.org/t/p/original/zIxhJps7652579g5azVwnJ8749z.jpg' },
+    { id: 'hulu', name: 'Hulu', icon: 'https://image.tmdb.org/t/p/original/z83o395-7Fv4-4b1-8-9d-1.jpg' }, // Placeholder, need actual Hulu logo URL if possible, or use local asset
+    { id: 'apple', name: 'Apple TV+', icon: 'https://image.tmdb.org/t/p/original/4KAy34EHvRM25Ih8wb82AuGU7zJ.jpg' },
 ];
 
 export default function ServicesScreen() {
-    const { user } = useAuth();
+    // const { user } = useAuth();
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
-    const toggleService = (id: string) => {
-        if (selectedServices.includes(id)) {
-            setSelectedServices(selectedServices.filter(s => s !== id));
-        } else {
-            setSelectedServices([...selectedServices, id]);
-        }
+    const toggleService = (serviceId: string) => {
+        setSelectedServices(prev =>
+            prev.includes(serviceId)
+                ? prev.filter(id => id !== serviceId)
+                : [...prev, serviceId]
+        );
     };
 
-    const handleNext = async () => {
+    const handleContinue = async () => {
         setLoading(true);
         try {
-            // Save partial preferences
-            await authService.saveUserPreferences({
-                subscribed_services: selectedServices,
-            });
-            router.push('/(onboarding)/habits');
+            // Save selected services to user profile
+            // await authService.updateProfile({ services: selectedServices });
+            // For now, just simulate a delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Navigate to next step (Budget)
+            // router.push('/(onboarding)/budget');
         } catch (error) {
             console.error('Error saving services:', error);
         } finally {
@@ -45,42 +42,48 @@ export default function ServicesScreen() {
         }
     };
 
-    const renderItem = ({ item }: { item: any }) => {
-        const isSelected = selectedServices.includes(item.id);
-        return (
-            <TouchableOpacity
-                style={[styles.card, isSelected && styles.selectedCard]}
-                onPress={() => toggleService(item.id)}
-            >
-                <Image
-                    source={{ uri: `https://image.tmdb.org/t/p/w92${item.logo}` }}
-                    style={styles.logo}
-                />
-                <Text style={[styles.name, isSelected && styles.selectedName]}>{item.name}</Text>
-                {isSelected && (
-                    <View style={styles.checkIcon}>
-                        <Text style={styles.checkText}>✓</Text>
+    const renderServiceItem = ({ item }: { item: typeof POPULAR_SERVICES[0] }) => (
+        <TouchableOpacity
+            style={[
+                styles.serviceCard,
+                selectedServices.includes(item.id) && styles.serviceCardSelected
+            ]}
+            onPress={() => toggleService(item.id)}
+        >
+            <Image source={{ uri: item.icon }} style={styles.serviceIcon} />
+            <View style={styles.serviceOverlay}>
+                {selectedServices.includes(item.id) && (
+                    <View style={styles.checkmark}>
+                        <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                 )}
-            </TouchableOpacity>
-        );
-    };
+            </View>
+            <Text style={styles.serviceName}>{item.name}</Text>
+        </TouchableOpacity>
+    );
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>What do you subscribe to?</Text>
-            <Text style={styles.subtitle}>Select the services you currently have access to.</Text>
+            <Text style={styles.title}>Select Your Services</Text>
+            <Text style={styles.subtitle}>Select the streaming services you use to get personalized recommendations.</Text>
 
             <FlatList
                 data={POPULAR_SERVICES}
-                renderItem={renderItem}
+                renderItem={renderServiceItem}
                 keyExtractor={item => item.id}
                 numColumns={2}
-                contentContainerStyle={styles.list}
+                contentContainerStyle={styles.listContainer}
+                columnWrapperStyle={styles.columnWrapper}
             />
 
-            <TouchableOpacity style={styles.button} onPress={handleNext} disabled={loading}>
-                <Text style={styles.buttonText}>{loading ? 'Saving...' : 'Next'}</Text>
+            <TouchableOpacity
+                style={styles.continueButton}
+                onPress={handleContinue}
+                disabled={loading}
+            >
+                <Text style={styles.continueButtonText}>
+                    {loading ? 'Saving...' : 'Continue'}
+                </Text>
             </TouchableOpacity>
         </View>
     );
@@ -89,78 +92,95 @@ export default function ServicesScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        padding: 24,
         backgroundColor: Colors.background,
     },
     title: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
         color: Colors.text,
-        marginBottom: 8,
+        marginTop: 48,
+        marginBottom: 12,
     },
     subtitle: {
         fontSize: 16,
-        color: Colors.textSecondary,
-        marginBottom: 24,
+        color: Colors.textMuted,
+        marginBottom: 32,
+        lineHeight: 24,
     },
-    list: {
-        paddingBottom: 80,
+    listContainer: {
+        paddingBottom: 100,
     },
-    card: {
-        flex: 1,
+    columnWrapper: {
+        justifyContent: 'space-between',
+    },
+    serviceCard: {
+        width: '48%',
+        aspectRatio: 1,
+        marginBottom: 16,
+        borderRadius: 16,
+        overflow: 'hidden',
+        position: 'relative',
         backgroundColor: Colors.surface,
-        margin: 8,
-        borderRadius: 12,
-        padding: 16,
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: 'transparent',
     },
-    selectedCard: {
+    serviceCardSelected: {
+        borderWidth: 3,
         borderColor: Colors.primary,
-        backgroundColor: 'rgba(30, 136, 229, 0.1)',
     },
-    logo: {
-        width: 60,
-        height: 60,
-        borderRadius: 12,
-        marginBottom: 12,
+    serviceIcon: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
-    name: {
-        color: Colors.text,
-        fontSize: 14,
-        textAlign: 'center',
-        fontWeight: '600',
-    },
-    selectedName: {
-        color: Colors.primary,
-    },
-    checkIcon: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: Colors.primary,
-        borderRadius: 10,
-        width: 20,
-        height: 20,
+    serviceOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    checkText: {
+    checkmark: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkmarkText: {
         color: 'white',
-        fontSize: 12,
+        fontSize: 24,
         fontWeight: 'bold',
     },
-    button: {
-        backgroundColor: Colors.primary,
-        padding: 16,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginTop: 16,
-    },
-    buttonText: {
+    serviceName: {
+        position: 'absolute',
+        bottom: 12,
+        left: 12,
         color: 'white',
         fontSize: 16,
+        fontWeight: 'bold',
+        textShadowColor: 'rgba(0,0,0,0.75)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
+    },
+    continueButton: {
+        position: 'absolute',
+        bottom: 48,
+        left: 24,
+        right: 24,
+        backgroundColor: Colors.primary,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    continueButtonText: {
+        color: 'white',
+        fontSize: 18,
         fontWeight: 'bold',
     },
 });

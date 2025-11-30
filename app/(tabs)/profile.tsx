@@ -16,6 +16,7 @@ import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnim
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Logo } from '../../components/Logo';
 import { ProgressStats } from '../../components/ProgressStats';
+import { AchievementBadge } from '../../components/AchievementBadge';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -118,6 +119,11 @@ export default function ProfileScreen() {
         {/* Stats Section */}
         <View style={styles.statsContainer}>
           <ProgressStats />
+        </View>
+
+        {/* Achievement Badge */}
+        <View style={styles.achievementBadgeContainer}>
+          <AchievementBadge size="large" />
         </View>
 
         {/* Quick Actions */}
@@ -304,6 +310,10 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   statsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  achievementBadgeContainer: {
     paddingHorizontal: 20,
     marginBottom: 30,
   },

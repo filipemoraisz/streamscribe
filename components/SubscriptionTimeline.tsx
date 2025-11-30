@@ -5,12 +5,12 @@ import { Colors } from '../constants/Colors';
 import { OptimizationPlan, SubscriptionAction } from '../services/optimizer';
 import { tmdbService } from '../services/tmdb';
 
+import { ImpactHeader } from './ImpactHeader';
+
 interface Props {
     plan: OptimizationPlan;
     onRecalculate: () => void;
 }
-
-import { ImpactHeader } from './ImpactHeader';
 
 export function SubscriptionTimeline({ plan, onRecalculate }: Props) {
     const renderActionCard = (action: SubscriptionAction, isCurrent: boolean) => {

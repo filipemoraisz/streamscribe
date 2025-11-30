@@ -41,12 +41,12 @@ export default function NotificationsScreen() {
 
     try {
       if (showRefresh) setIsRefreshing(true);
-      
+
       console.log('Loading notifications for user:', user.id);
-      
+
       // Get notification history from database
       const dbNotifications = await notificationHistoryService.getNotificationHistory(user.id, 100);
-      
+
       console.log('Fetched notifications from DB:', dbNotifications.length, dbNotifications);
 
       // Convert database notifications to UI format
@@ -83,8 +83,8 @@ export default function NotificationsScreen() {
       // Mark as read if not already read
       if (!notification.read) {
         await notificationHistoryService.markAsRead(notification.id);
-        setNotifications(prev => 
-          prev.map(notif => 
+        setNotifications(prev =>
+          prev.map(notif =>
             notif.id === notification.id ? { ...notif, read: true } : notif
           )
         );
@@ -168,13 +168,13 @@ export default function NotificationsScreen() {
     >
       <View style={styles.notificationContent}>
         <View style={styles.iconContainer}>
-          <Ionicons 
-            name={getNotificationIcon(item.type) as any} 
-            size={24} 
-            color={!item.read ? Colors.primary : Colors.textMuted} 
+          <Ionicons
+            name={getNotificationIcon(item.type) as any}
+            size={24}
+            color={!item.read ? Colors.primary : Colors.textMuted}
           />
         </View>
-        
+
         <View style={styles.textContainer}>
           <View style={styles.notificationHeader}>
             <Text style={[styles.notificationTitle, !item.read && styles.unreadText]} numberOfLines={2}>
@@ -184,12 +184,12 @@ export default function NotificationsScreen() {
               {formatTimestamp(item.timestamp)}
             </Text>
           </View>
-          
+
           <Text style={styles.notificationBody} numberOfLines={3}>
             {item.body}
           </Text>
         </View>
-        
+
         {!item.read && <View style={styles.unreadDot} />}
       </View>
     </TouchableOpacity>
@@ -208,7 +208,7 @@ export default function NotificationsScreen() {
   // Create test notification for debugging
   const createTestNotification = async () => {
     if (!user) return;
-    
+
     try {
       await notificationHistoryService.storeNotification({
         user_id: user.id,
@@ -218,7 +218,7 @@ export default function NotificationsScreen() {
         data: { showId: '12345', episodeId: '67890' },
         status: 'sent'
       });
-      
+
       // Reload notifications
       loadNotifications(false);
     } catch (error) {
@@ -252,7 +252,7 @@ export default function NotificationsScreen() {
             <Ionicons name="notifications-off" size={64} color={Colors.textMuted} />
             <Text style={styles.emptyText}>No notifications yet</Text>
             <Text style={styles.emptySubtext}>
-              You'll see your notification history here
+              You&apos;ll see your notification history here
             </Text>
             <TouchableOpacity onPress={createTestNotification} style={styles.createTestButton}>
               <Text style={styles.createTestButtonText}>Create Test Notification</Text>

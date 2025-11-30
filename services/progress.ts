@@ -4,6 +4,7 @@ import { EpisodeProgress, ShowProgress } from '../types';
 import { supabase } from './supabase';
 import { tmdbService } from './tmdb';
 import { storageService } from './storage';
+import { achievementChecker } from './achievementChecker';
 
 type OfflineAction =
     | { type: 'MARK_WATCHED'; payload: { showId: number; seasonNumber: number; episodeNumber: number; rating?: number } }
@@ -291,6 +292,17 @@ class ProgressService {
                 });
             }
 
+            // 3. Check achievements (viewing and streak)
+            if (userId !== 'guest') {
+                try {
+                    await achievementChecker.checkEpisodeAchievements(userId);
+                    await achievementChecker.checkStreakAchievements(userId);
+                } catch (achievementError) {
+                    console.error('Error checking achievements:', achievementError);
+                    // Don't fail the main operation if achievement check fails
+                }
+            }
+
         } catch (error) {
             console.error('Error marking episode watched:', error);
         }
@@ -390,6 +402,15 @@ class ProgressService {
                 if (shouldCheckStatus) {
                     status = await this.determineShowStatus(showId, watchedEpisodes);
                     console.log(`[Progress] Determined status: ${status}`);
+                    
+                    // Check completion achievements when show is completed
+                    if (status === 'completed' && userId !== 'guest') {
+                        try {
+                            await achievementChecker.checkCompletionAchievements(userId);
+                        } catch (achievementError) {
+                            console.error('Error checking completion achievements:', achievementError);
+                        }
+                    }
                 }
 
                 // Auto-add to watchlist if not present
@@ -524,6 +545,16 @@ class ProgressService {
                 }
             }
 
+            // 3. Check achievements (viewing and streak)
+            if (userId !== 'guest') {
+                try {
+                    await achievementChecker.checkEpisodeAchievements(userId);
+                    await achievementChecker.checkStreakAchievements(userId);
+                } catch (achievementError) {
+                    console.error('Error checking achievements:', achievementError);
+                }
+            }
+
         } catch (error) {
             console.error('Error marking episodes up to:', error);
         }
@@ -635,6 +666,16 @@ class ProgressService {
                     type: 'MARK_BATCH_WATCHED',
                     payload: { showId, seasonNumber, episodeNumbers }
                 });
+            }
+
+            // 3. Check achievements (viewing and streak)
+            if (userId !== 'guest') {
+                try {
+                    await achievementChecker.checkEpisodeAchievements(userId);
+                    await achievementChecker.checkStreakAchievements(userId);
+                } catch (achievementError) {
+                    console.error('Error checking achievements:', achievementError);
+                }
             }
 
         } catch (error) {

@@ -10,7 +10,7 @@ import { Movie, TVShow } from '../../../../types';
 
 export default function CategoryResultsScreen() {
     const { id, title, type } = useLocalSearchParams<{ id: string; title: string; type: 'movie' | 'tv' }>();
-    const { user } = useAuth();
+    // const { user } = useAuth();
     const [results, setResults] = useState<(Movie | TVShow)[]>([]);
     const [loading, setLoading] = useState(true);
     const [watchlistIds, setWatchlistIds] = useState<Set<string>>(new Set());

@@ -86,6 +86,8 @@ function RootLayoutNav() {
         <Stack.Screen name="details/[type]/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="season/[showId]/[seasonNumber]" options={{ headerShown: true }} />
         <Stack.Screen name="episode/[showId]/[seasonNumber]/[episodeNumber]" options={{ headerShown: true }} />
+        <Stack.Screen name="achievements-list" options={{ headerShown: true, title: 'Achievements' }} />
+        <Stack.Screen name="achievement-settings" options={{ headerShown: true, title: 'Achievement Settings' }} />
         <Stack.Screen name="debug" options={{ headerShown: true }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
       </Stack>

@@ -46,7 +46,7 @@ export default function BudgetScreen() {
             </View>
 
             <Text style={styles.hint}>
-                We'll use this to optimize your subscriptions and find you the best value.
+                We&apos;ll use this to optimize your subscriptions and find you the best value.
             </Text>
 
             <View style={styles.spacer} />

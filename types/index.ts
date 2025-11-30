@@ -332,3 +332,147 @@ export interface RollbackOperation {
   timestamp: string;
   rollbackData: any;
 }
+
+// Achievement System Types
+
+export type AchievementTier = 'bronze' | 'silver' | 'gold' | 'platinum';
+export type AchievementCategory = 'viewing' | 'streaks' | 'completions' | 'savings' | 'efficiency';
+export type IconLibrary = 'Ionicons' | 'MaterialCommunityIcons' | 'FontAwesome';
+
+export interface UnlockCriteria {
+  type: 'episode_count' | 'streak_days' | 'show_completions' | 'total_savings' | 'monthly_efficiency';
+  value: number;
+  comparison?: 'gte' | 'lte' | 'eq'; // greater than or equal, less than or equal, equal
+}
+
+export interface Achievement {
+  id: string;
+  achievement_key: string;
+  name: string;
+  description: string;
+  category: AchievementCategory;
+  tier: AchievementTier;
+  icon_name: string;
+  icon_library: IconLibrary;
+  unlock_criteria: UnlockCriteria;
+  points: number;
+  sort_order: number;
+}
+
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_id: string;
+  achievement?: Achievement; // Joined data
+  unlocked_at: string;
+  progress_value?: number;
+  notified: boolean;
+}
+
+export interface AchievementProgress {
+  id: string;
+  user_id: string;
+  achievement_id: string;
+  achievement?: Achievement;
+  current_value: number;
+  target_value: number;
+  last_updated: string;
+  progress_percentage: number; // Calculated: (current_value / target_value) * 100
+}
+
+export interface AchievementStats {
+  total_unlocked: number;
+  total_available: number;
+  completion_percentage: number;
+  total_points: number;
+  by_tier: {
+    bronze: { unlocked: number; total: number };
+    silver: { unlocked: number; total: number };
+    gold: { unlocked: number; total: number };
+    platinum: { unlocked: number; total: number };
+  };
+  recent_achievements: UserAchievement[];
+  close_to_unlock: AchievementProgress[]; // >75% progress
+}
+
+export interface AchievementNotificationPreferences {
+  user_id: string;
+  in_app_full_screen: boolean; // Show full unlock screen
+  in_app_banner: boolean; // Show compact banner
+  push_notifications: boolean; // Send push notifications
+  sound_enabled: boolean; // Play sound on unlock
+  haptic_enabled: boolean; // Vibrate on unlock
+  progress_reminders: boolean; // Notify when close to unlock (>90%)
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AchievementNotificationQueue {
+  id: string;
+  achievement: Achievement;
+  timestamp: string;
+  displayed: boolean;
+  displayMode: 'full_screen' | 'banner';
+}
+
+// Achievement Constants
+
+export const TIER_COLORS = {
+  bronze: {
+    primary: '#CD7F32',
+    light: '#E6A85C',
+    dark: '#8B5A2B',
+    glow: 'rgba(205, 127, 50, 0.3)'
+  },
+  silver: {
+    primary: '#C0C0C0',
+    light: '#E8E8E8',
+    dark: '#808080',
+    glow: 'rgba(192, 192, 192, 0.3)'
+  },
+  gold: {
+    primary: '#FFD700',
+    light: '#FFED4E',
+    dark: '#B8860B',
+    glow: 'rgba(255, 215, 0, 0.4)'
+  },
+  platinum: {
+    primary: '#E5E4E2',
+    light: '#FFFFFF',
+    dark: '#A8A8A8',
+    glow: 'rgba(229, 228, 226, 0.5)'
+  }
+} as const;
+
+export const ACHIEVEMENT_ICONS = {
+  viewing: {
+    bronze: { name: 'trophy-outline', library: 'Ionicons' as IconLibrary },
+    silver: { name: 'trophy', library: 'Ionicons' as IconLibrary },
+    gold: { name: 'trophy', library: 'Ionicons' as IconLibrary },
+    platinum: { name: 'trophy', library: 'Ionicons' as IconLibrary }
+  },
+  streaks: {
+    bronze: { name: 'flame-outline', library: 'Ionicons' as IconLibrary },
+    silver: { name: 'flame', library: 'Ionicons' as IconLibrary },
+    gold: { name: 'flame', library: 'Ionicons' as IconLibrary },
+    platinum: { name: 'flame', library: 'Ionicons' as IconLibrary }
+  },
+  completions: {
+    bronze: { name: 'star-outline', library: 'Ionicons' as IconLibrary },
+    silver: { name: 'star', library: 'Ionicons' as IconLibrary },
+    gold: { name: 'star', library: 'Ionicons' as IconLibrary },
+    platinum: { name: 'star', library: 'Ionicons' as IconLibrary }
+  },
+  savings: {
+    bronze: { name: 'cash-outline', library: 'Ionicons' as IconLibrary },
+    silver: { name: 'cash', library: 'Ionicons' as IconLibrary },
+    gold: { name: 'cash', library: 'Ionicons' as IconLibrary },
+    platinum: { name: 'cash', library: 'Ionicons' as IconLibrary }
+  },
+  efficiency: {
+    bronze: { name: 'speedometer-outline', library: 'Ionicons' as IconLibrary },
+    silver: { name: 'speedometer', library: 'Ionicons' as IconLibrary },
+    gold: { name: 'speedometer', library: 'Ionicons' as IconLibrary },
+    platinum: { name: 'speedometer', library: 'Ionicons' as IconLibrary }
+  }
+} as const;

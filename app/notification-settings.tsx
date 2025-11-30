@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import {
   Alert,
@@ -15,7 +15,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '../constants/Colors';
 import { BrandTokens, Typography, Spacing, BorderRadius } from '../constants/BrandTokens';
 import { PrimaryCTA } from '../components/design-system/PrimaryCTA';
-import { notificationManager, notificationPermissionService } from '../services';
+import { notificationManager } from '../services';
 import { useNotificationPermissions } from '../components/hooks/useNotificationPermissions';
 import type { NotificationPreferences } from '../types';
 
@@ -35,7 +35,7 @@ export default function NotificationSettingsScreen() {
     try {
       setIsLoading(true);
       const prefs = await notificationManager.getPreferences();
-      
+
       // If no preferences exist, create default ones
       if (!prefs) {
         const defaultPrefs: NotificationPreferences = {
@@ -168,11 +168,11 @@ export default function NotificationSettingsScreen() {
   if (isLoading || !preferences) {
     return (
       <>
-        <Stack.Screen 
+        <Stack.Screen
           options={{
             title: 'Notification Settings',
             headerShown: true,
-          }} 
+          }}
         />
         <View style={styles.container}>
           <View style={styles.loadingContainer}>
@@ -185,260 +185,181 @@ export default function NotificationSettingsScreen() {
 
   return (
     <>
-      <Stack.Screen 
+      <Stack.Screen
         options={{
           title: 'Notification Settings',
           headerShown: true,
-        }} 
+        }}
       />
       <View style={styles.container}>
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Permission Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Permission Status</Text>
-          <View style={styles.permissionCard}>
-            <View style={styles.permissionStatus}>
-              <Ionicons
-                name={permissionState.hasPermission ? 'checkmark-circle' : 'alert-circle'}
-                size={24}
-                color={permissionState.hasPermission ? BrandTokens.success : BrandTokens.warning}
-              />
-              <Text style={styles.permissionText}>
-                {permissionState.hasPermission
-                  ? 'Notifications are enabled'
-                  : 'Notifications are disabled'}
-              </Text>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Permission Status */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Permission Status</Text>
+            <View style={styles.permissionCard}>
+              <View style={styles.permissionStatus}>
+                <Ionicons
+                  name={permissionState.hasPermission ? 'checkmark-circle' : 'alert-circle'}
+                  size={24}
+                  color={permissionState.hasPermission ? BrandTokens.success : BrandTokens.warning}
+                />
+                <Text style={styles.permissionText}>
+                  {permissionState.hasPermission
+                    ? 'Notifications are enabled'
+                    : 'Notifications are disabled'}
+                </Text>
+              </View>
+              {!permissionState.hasPermission && (
+                <PrimaryCTA
+                  title="Enable Notifications"
+                  onPress={permissionActions.requestPermission}
+                  loading={permissionState.isLoading}
+                  style={styles.enableButton}
+                />
+              )}
             </View>
-            {!permissionState.hasPermission && (
-              <PrimaryCTA
-                title="Enable Notifications"
-                onPress={permissionActions.requestPermission}
-                loading={permissionState.isLoading}
-                style={styles.enableButton}
+          </View>
+
+          {/* Notification Types */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notification Types</Text>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>New Episodes</Text>
+                <Text style={styles.settingDescription}>Get notified when new episodes air</Text>
+              </View>
+              <Switch
+                value={preferences.episodeReleases}
+                onValueChange={(value) => updatePreference('episodeReleases', value)}
+                trackColor={{ false: Colors.surface, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Streaming Updates</Text>
+                <Text style={styles.settingDescription}>When shows are available on your services</Text>
+              </View>
+              <Switch
+                value={preferences.streamingUpdates}
+                onValueChange={(value) => updatePreference('streamingUpdates', value)}
+                trackColor={{ false: Colors.surface, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Recommendations</Text>
+                <Text style={styles.settingDescription}>Personalized suggestions based on your taste</Text>
+              </View>
+              <Switch
+                value={preferences.recommendations}
+                onValueChange={(value) => updatePreference('recommendations', value)}
+                trackColor={{ false: Colors.surface, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Progress Sync</Text>
+                <Text style={styles.settingDescription}>Updates about your watch progress</Text>
+              </View>
+              <Switch
+                value={preferences.progressSync}
+                onValueChange={(value) => updatePreference('progressSync', value)}
+                trackColor={{ false: Colors.surface, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
+            </View>
+          </View>
+
+          {/* Quiet Hours */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quiet Hours</Text>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Enable Quiet Hours</Text>
+                <Text style={styles.settingDescription}>Mute notifications during specific times</Text>
+              </View>
+              <Switch
+                value={preferences.quietHours?.enabled ?? false}
+                onValueChange={(value) => updateQuietHours('enabled', value)}
+                trackColor={{ false: Colors.surface, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
+            </View>
+
+            {preferences.quietHours?.enabled && (
+              <View style={styles.timePickerContainer}>
+                <TouchableOpacity
+                  style={styles.timeButton}
+                  onPress={() => setShowStartTimePicker(true)}
+                >
+                  <Text style={styles.timeLabel}>Start Time</Text>
+                  <Text style={styles.timeValue}>{preferences.quietHours.start}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.timeButton}
+                  onPress={() => setShowEndTimePicker(true)}
+                >
+                  <Text style={styles.timeLabel}>End Time</Text>
+                  <Text style={styles.timeValue}>{preferences.quietHours.end}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {showStartTimePicker && (
+              <DateTimePicker
+                value={parseTime(preferences.quietHours?.start || '22:00')}
+                mode="time"
+                is24Hour={true}
+                display="default"
+                onChange={(e, date) => handleTimeChange(e, date, 'start')}
+              />
+            )}
+
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={parseTime(preferences.quietHours?.end || '08:00')}
+                mode="time"
+                is24Hour={true}
+                display="default"
+                onChange={(e, date) => handleTimeChange(e, date, 'end')}
               />
             )}
           </View>
-        </View>
 
-        {/* Notification Types */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Types</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="tv" size={22} color="#FF6B35" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingTitle}>Episode Releases</Text>
-                <Text style={styles.settingDescription}>
-                  New episodes from your watchlist
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={preferences.episodeReleases}
-              onValueChange={(value) => updatePreference('episodeReleases', value)}
-              trackColor={{ false: Colors.border, true: '#FF6B35' }}
-              thumbColor={BrandTokens.white}
-              disabled={isSaving}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="trending-up" size={22} color="#FF6B35" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingTitle}>Streaming Updates</Text>
-                <Text style={styles.settingDescription}>
-                  Content availability changes
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={preferences.streamingUpdates}
-              onValueChange={(value) => updatePreference('streamingUpdates', value)}
-              trackColor={{ false: Colors.border, true: '#FF6B35' }}
-              thumbColor={BrandTokens.white}
-              disabled={isSaving}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="star" size={22} color="#FF6B35" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingTitle}>Recommendations</Text>
-                <Text style={styles.settingDescription}>
-                  Personalized content suggestions
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={preferences.recommendations}
-              onValueChange={(value) => updatePreference('recommendations', value)}
-              trackColor={{ false: Colors.border, true: '#FF6B35' }}
-              thumbColor={BrandTokens.white}
-              disabled={isSaving}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="sync" size={22} color="#FF6B35" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingTitle}>Progress Sync</Text>
-                <Text style={styles.settingDescription}>
-                  Multi-device synchronization alerts
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={preferences.progressSync}
-              onValueChange={(value) => updatePreference('progressSync', value)}
-              trackColor={{ false: Colors.border, true: '#FF6B35' }}
-              thumbColor={BrandTokens.white}
-              disabled={isSaving}
-            />
-          </View>
-        </View>
-
-        {/* Quiet Hours */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quiet Hours</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="moon" size={22} color="#FF6B35" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingTitle}>Enable Quiet Hours</Text>
-                <Text style={styles.settingDescription}>
-                  Pause notifications during specified times
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={preferences.quietHours?.enabled || false}
-              onValueChange={(value) => updateQuietHours('enabled', value)}
-              trackColor={{ false: Colors.border, true: '#FF6B35' }}
-              thumbColor={BrandTokens.white}
-              disabled={isSaving}
-            />
-          </View>
-
-          {preferences.quietHours?.enabled && (
-            <>
-              <TouchableOpacity
-                style={styles.timeSettingItem}
-                onPress={() => setShowStartTimePicker(true)}
-                disabled={isSaving}
-              >
-                <Text style={styles.timeLabel}>Start Time</Text>
-                <View style={styles.timeValue}>
-                  <Text style={styles.timeText}>{preferences.quietHours?.start || '22:00'}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={BrandTokens.mutedGray} />
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.timeSettingItem}
-                onPress={() => setShowEndTimePicker(true)}
-                disabled={isSaving}
-              >
-                <Text style={styles.timeLabel}>End Time</Text>
-                <View style={styles.timeValue}>
-                  <Text style={styles.timeText}>{preferences.quietHours?.end || '08:00'}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={BrandTokens.mutedGray} />
-                </View>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-
-        {/* Frequency */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Frequency</Text>
-          
-          {(['immediate', 'daily', 'weekly'] as const).map((freq) => (
+          {/* Debug / Testing */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Testing & Debug</Text>
             <TouchableOpacity
-              key={freq}
-              style={styles.frequencyItem}
-              onPress={() => updatePreference('frequency', freq)}
-              disabled={isSaving}
+              style={styles.testButton}
+              onPress={handleTestNotification}
             >
-              <View style={styles.frequencyLeft}>
-                <Text style={styles.frequencyTitle}>
-                  {freq.charAt(0).toUpperCase() + freq.slice(1)}
-                </Text>
-                <Text style={styles.frequencyDescription}>
-                  {freq === 'immediate' && 'Receive notifications as they happen'}
-                  {freq === 'daily' && 'Receive a daily digest of notifications'}
-                  {freq === 'weekly' && 'Receive a weekly summary of notifications'}
-                </Text>
-              </View>
-              <View style={styles.radioButton}>
-                {preferences.frequency === freq && (
-                  <View style={styles.radioButtonSelected} />
-                )}
-              </View>
+              <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+              <Text style={styles.testButtonText}>Send Test Notification</Text>
             </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
-          
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={handleTestNotification}
-            disabled={isSaving}
-          >
-            <View style={styles.actionLeft}>
-              <Ionicons name="send" size={22} color="#FF6B35" />
-              <Text style={styles.actionText}>Send Test Notification</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.testButton, styles.resetButton]}
+              onPress={handleResetPermissions}
+            >
+              <Ionicons name="refresh-outline" size={20} color={Colors.error} />
+              <Text style={[styles.testButtonText, styles.resetButtonText]}>Reset Permissions</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={handleResetPermissions}
-            disabled={isSaving}
-          >
-            <View style={styles.actionLeft}>
-              <Ionicons name="refresh" size={22} color={BrandTokens.warning} />
-              <Text style={[styles.actionText, { color: BrandTokens.warning }]}>
-                Reset Permission Settings
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Time Pickers */}
-      {showStartTimePicker && (
-        <DateTimePicker
-          value={parseTime(preferences.quietHours?.start || '22:00')}
-          mode="time"
-          is24Hour={true}
-          display="default"
-          onChange={(event, time) => handleTimeChange(event, time, 'start')}
-        />
-      )}
-
-      {showEndTimePicker && (
-        <DateTimePicker
-          value={parseTime(preferences.quietHours?.end || '08:00')}
-          mode="time"
-          is24Hour={true}
-          display="default"
-          onChange={(event, time) => handleTimeChange(event, time, 'end')}
-        />
-      )}
+        </ScrollView>
       </View>
     </>
   );
@@ -449,175 +370,117 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    ...Typography.body,
-    color: BrandTokens.mutedGray,
+    marginTop: 12,
+    color: Colors.textSecondary,
+    fontSize: 16,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: 40,
   },
   section: {
-    marginTop: 24,
-    paddingHorizontal: 20,
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...Typography.h3,
+    color: Colors.text,
+    marginBottom: Spacing.md,
   },
   permissionCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.sm,
+    gap: Spacing.md,
   },
   permissionStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   permissionText: {
     ...Typography.body,
     color: Colors.text,
-    marginLeft: Spacing.md,
     flex: 1,
   },
   enableButton: {
-    marginTop: Spacing.sm,
+    width: '100%',
   },
-  settingItem: {
+  settingRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  settingLeft: {
-    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  settingTextContainer: {
-    marginLeft: Spacing.md,
+  settingInfo: {
     flex: 1,
+    paddingRight: Spacing.md,
   },
-  settingTitle: {
-    ...Typography.body,
-    fontWeight: '600',
+  settingLabel: {
+    ...Typography.bodyBold,
     color: Colors.text,
-    marginBottom: 2,
   },
   settingDescription: {
-    ...Typography.bodySmall,
+    ...Typography.caption,
     color: Colors.textSecondary,
+    marginTop: 2,
   },
-  timeSettingItem: {
+  timePickerContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  timeButton: {
+    flex: 1,
     backgroundColor: Colors.surface,
+    padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   timeLabel: {
-    ...Typography.body,
-    color: Colors.text,
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginBottom: 4,
   },
   timeValue: {
+    ...Typography.h3,
+    color: Colors.primary,
+  },
+  testButton: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  timeText: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: BrandTokens.brandBlue,
-    marginRight: Spacing.sm,
-  },
-  frequencyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  frequencyLeft: {
-    flex: 1,
-  },
-  frequencyTitle: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  frequencyDescription: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioButtonSelected: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FF6B35',
-  },
-  actionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: Spacing.md,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
+    gap: Spacing.sm,
     marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
-  actionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  testButtonText: {
+    ...Typography.bodyBold,
+    color: Colors.primary,
   },
-  actionText: {
-    ...Typography.body,
-    fontWeight: '500',
-    color: Colors.text,
-    marginLeft: Spacing.md,
+  resetButton: {
+    borderColor: Colors.error,
+    marginTop: Spacing.sm,
+  },
+  resetButtonText: {
+    color: Colors.error,
   },
 });
