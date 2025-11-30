@@ -13,6 +13,7 @@ import { BrandTokens, Typography, Spacing, BorderRadius, Shadows } from '../cons
 import { MediaCard } from './MediaCard';
 import { useRealTimeUpdates } from './hooks/useRealTimeUpdates';
 import { useOptimisticUpdates } from './hooks/useOptimisticUpdates';
+import { useAuth } from '../contexts/AuthContext';
 import { RealTimeUpdate, Movie, TVShow } from '../types';
 
 export interface RealTimeRecommendationWidgetProps {
@@ -40,6 +41,7 @@ interface RecommendationItem {
 export const RealTimeRecommendationWidget: React.FC<RealTimeRecommendationWidgetProps> = ({
   onItemPress,
 }) => {
+  const { user } = useAuth();
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
@@ -99,6 +101,9 @@ export const RealTimeRecommendationWidget: React.FC<RealTimeRecommendationWidget
     
     setIsLoading(true);
     try {
+      // Small delay to ensure Supabase session is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Import services dynamically to avoid circular dependencies
       const [{ recommendationService }, { storageService }] = await Promise.all([
         import('../services/recommendations'),
@@ -115,59 +120,66 @@ export const RealTimeRecommendationWidget: React.FC<RealTimeRecommendationWidget
       // Get real recommendations from the service
       const monthlyRecs = await recommendationService.generateMonthlyRecommendations();
       
+      console.log('[RealTimeRecommendationWidget] Monthly recommendations:', {
+        totalWatchlistItems: monthlyRecs.totalWatchlistItems,
+        topProvidersCount: monthlyRecs.topProviders.length,
+      });
+      
       // Convert provider recommendations to widget format
       const widgetRecommendations: RecommendationItem[] = [];
       
       // Get content from top providers
       const topProviders = monthlyRecs.topProviders.slice(0, 2); // Take top 2 providers
       
+      console.log('[RealTimeRecommendationWidget] Processing providers:', topProviders.map(p => ({
+        name: p.providerName,
+        movies: p.availableContent.movies.length,
+        tvShows: p.availableContent.tvShows.length,
+      })));
+      
       topProviders.forEach(provider => {
         // Add some movies from this provider
+        // These are items FROM your watchlist that are available on this provider
         const movies = provider.availableContent.movies.slice(0, 3);
         movies.forEach(item => {
-          const itemKey = `movie-${item.id}`;
-          // Skip if already in watchlist
-          if (!watchlistItemKeys.has(itemKey)) {
-            widgetRecommendations.push({
-              id: item.id,
-              type: 'movie',
-              title: item.title,
-              poster_path: item.poster_path,
-              vote_average: item.vote_average,
-              release_date: item.release_date,
-              reason: `Available on ${provider.providerName}`,
-              timestamp: new Date().toISOString(),
-            });
-          }
+          widgetRecommendations.push({
+            id: item.id,
+            type: 'movie',
+            title: item.title,
+            poster_path: item.poster_path,
+            vote_average: item.vote_average,
+            release_date: item.release_date,
+            reason: `Available on ${provider.providerName}`,
+            timestamp: new Date().toISOString(),
+          });
         });
         
         // Add some TV shows from this provider
+        // These are items FROM your watchlist that are available on this provider
         const tvShows = provider.availableContent.tvShows.slice(0, 3);
         tvShows.forEach(item => {
-          const itemKey = `tv-${item.id}`;
-          // Skip if already in watchlist
-          if (!watchlistItemKeys.has(itemKey)) {
-            widgetRecommendations.push({
-              id: item.id,
-              type: 'tv',
-              title: item.title,
-              poster_path: item.poster_path,
-              vote_average: item.vote_average,
-              first_air_date: item.first_air_date,
-              reason: `Available on ${provider.providerName}`,
-              timestamp: new Date().toISOString(),
-            });
-          }
+          widgetRecommendations.push({
+            id: item.id,
+            type: 'tv',
+            title: item.title,
+            poster_path: item.poster_path,
+            vote_average: item.vote_average,
+            first_air_date: item.first_air_date,
+            reason: `Available on ${provider.providerName}`,
+            timestamp: new Date().toISOString(),
+          });
         });
       });
       
-      // Filter out any items that are in the current watchlist (double-check)
-      const filteredRecommendations = widgetRecommendations.filter(item => {
-        const itemKey = `${item.type}-${item.id}`;
-        return !watchlistIds.has(itemKey);
+      // No need to filter - these ARE items from your watchlist
+      // The widget shows which streaming services have your watchlist content
+      
+      console.log('[RealTimeRecommendationWidget] Final recommendations:', {
+        total: widgetRecommendations.length,
+        watchlistSize: watchlistIds.size,
       });
       
-      setRecommendations(filteredRecommendations.slice(0, 4)); // Limit to 4 items
+      setRecommendations(widgetRecommendations.slice(0, 4)); // Limit to 4 items
       setLastUpdate(new Date().toISOString());
     } catch (error) {
       console.error('Error refreshing recommendations:', error);
@@ -179,8 +191,14 @@ export const RealTimeRecommendationWidget: React.FC<RealTimeRecommendationWidget
   }, [isLoading, watchlistIds]);
 
   useEffect(() => {
-    handleRecommendationRefresh();
-  }, []);
+    // Only load recommendations when user is authenticated
+    if (user) {
+      console.log('[RealTimeRecommendationWidget] User authenticated, loading recommendations for:', user.id);
+      handleRecommendationRefresh();
+    } else {
+      console.log('[RealTimeRecommendationWidget] No user yet, waiting for authentication');
+    }
+  }, [user]);
 
   const handleItemPress = (item: RecommendationItem) => {
     const baseMediaItem = {
@@ -235,6 +253,11 @@ export const RealTimeRecommendationWidget: React.FC<RealTimeRecommendationWidget
     
     return 'Updated today';
   };
+
+  // Don't show anything if user is not authenticated
+  if (!user) {
+    return null;
+  }
 
   if (recommendations.length === 0 && !isLoading) {
     return null;

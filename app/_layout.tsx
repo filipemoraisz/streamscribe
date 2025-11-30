@@ -45,16 +45,25 @@ function RootLayoutNav() {
       .then(() => console.log('Notification manager initialized'))
       .catch(error => console.error('Error initializing notification manager:', error));
     
-    realTimeManager.connect()
-      .then(() => console.log('Real-time manager connected'))
-      .catch(error => console.error('Error connecting real-time manager:', error));
-    
     return () => {
       notificationDeepLinkingService.cleanup();
       realTimeManager.disconnect();
       notificationManager.cleanup();
     };
   }, []);
+
+  // Connect real-time manager only after user is authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      console.log('User authenticated, connecting real-time manager');
+      realTimeManager.connect()
+        .then(() => console.log('Real-time manager connected'))
+        .catch(error => console.error('Error connecting real-time manager:', error));
+    } else if (!user && !loading) {
+      console.log('User not authenticated, disconnecting real-time manager');
+      realTimeManager.disconnect();
+    }
+  }, [user, loading]);
 
   return (
     <>

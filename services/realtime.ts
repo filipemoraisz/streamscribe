@@ -1058,8 +1058,9 @@ export class RealTimeManager {
   private setupUserSubscriptions(): Promise<void> {
     return new Promise(async (resolve) => {
     try {
-      // Get current user from Supabase auth
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user from Supabase session (more reliable than getUser)
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       
       if (user) {
         console.log(`Setting up subscriptions for authenticated user: ${user.id}`);

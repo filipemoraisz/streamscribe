@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export interface QuickAction {
   id: string;
@@ -34,7 +35,9 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({ action, onPress }) =>
       accessibilityHint={`Navigate to ${action.label}`}
     >
       <View style={styles.iconContainer}>
-        <Ionicons name={action.icon} size={32} color={Colors.primary} />
+        <View style={styles.iconBackground}>
+          <Ionicons name={action.icon} size={24} color={Colors.primary} />
+        </View>
         {action.badge !== undefined && action.badge > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
@@ -43,7 +46,6 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({ action, onPress }) =>
           </View>
         )}
       </View>
-      <Text style={styles.actionLabel}>{action.label}</Text>
     </TouchableOpacity>
   );
 };
@@ -59,55 +61,67 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <View style={styles.grid}>
-        {actions.map((action) => (
-          <QuickActionCard
-            key={action.id}
-            action={action}
-            onPress={onActionPress}
-          />
-        ))}
-      </View>
+      <LinearGradient
+        colors={['rgba(0, 0, 0, 0.4)', 'rgba(0, 0, 0, 0.6)']}
+        style={styles.gradientBackground}
+      >
+        <View style={styles.row}>
+          {actions.map((action) => (
+            <QuickActionCard
+              key={action.id}
+              action={action}
+              onPress={onActionPress}
+            />
+          ))}
+        </View>
+      </LinearGradient>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 138, 0, 0.2)',
+  },
+  gradientBackground: {
     paddingVertical: 16,
+    paddingHorizontal: 12,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 16,
-  },
-  grid: {
+  row: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    gap: 8,
   },
   actionCard: {
-    width: '48%',
-    aspectRatio: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   iconContainer: {
     position: 'relative',
-    marginBottom: 12,
+  },
+  iconBackground: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 138, 0, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 138, 0, 0.3)',
   },
   badge: {
     position: 'absolute',
     top: -4,
-    right: -8,
+    right: -4,
     backgroundColor: Colors.primary,
     borderRadius: 10,
     minWidth: 20,
@@ -115,16 +129,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.6)',
   },
   badgeText: {
-    color: Colors.text,
+    color: '#000',
     fontSize: 11,
     fontWeight: '700',
-  },
-  actionLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
-    textAlign: 'center',
   },
 });

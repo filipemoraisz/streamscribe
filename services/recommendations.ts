@@ -77,8 +77,16 @@ class RecommendationService {
 
   async generateMonthlyRecommendations(forceRefresh = false): Promise<MonthlyRecommendation> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      // Try to get user from session first (more reliable)
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      
+      if (!user) {
+        console.log('[Recommendations] User not authenticated yet, returning empty recommendations');
+        return this.getEmptyRecommendation();
+      }
+      
+      console.log('[Recommendations] User authenticated, generating recommendations for user:', user.id);
 
       const currentDate = new Date();
       const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
@@ -105,7 +113,14 @@ class RecommendationService {
       const watchlist = await storageService.getWatchlist();
       const unwatchedItems = watchlist.filter(item => !item.watched);
 
+      console.log('[Recommendations] Watchlist analysis:', {
+        totalItems: watchlist.length,
+        unwatchedItems: unwatchedItems.length,
+        watchedItems: watchlist.filter(item => item.watched).length,
+      });
+
       if (unwatchedItems.length === 0) {
+        console.log('[Recommendations] No unwatched items in watchlist, returning empty recommendations');
         return this.getEmptyRecommendation();
       }
 

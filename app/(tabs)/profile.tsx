@@ -1,14 +1,11 @@
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import * as Haptics from 'expo-haptics';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  Alert,
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
@@ -28,6 +25,7 @@ import { achievementsService } from '../../services/achievements';
 import { UserStats, AchievementStats } from '../../types';
 
 const HEADER_HEIGHT = 60;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export default function ProfileScreen() {
   const { user } = useAuth();
@@ -38,6 +36,12 @@ export default function ProfileScreen() {
   const [achievementStats, setAchievementStats] = useState<AchievementStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Persistence and scroll position
+  const scrollRef = useRef<Animated.ScrollView>(null);
+  const savedScrollPosition = useRef(0);
+  const lastLoadTime = useRef<number>(0);
+  const isInitialLoad = useRef(true);
 
   const colorScheme = useColorScheme();
   const iconColor = colorScheme === 'dark' ? 'white' : 'black';
@@ -61,7 +65,26 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
-        loadProfileData();
+        const now = Date.now();
+        const timeSinceLastLoad = now - lastLoadTime.current;
+        
+        // Only reload if cache is expired or it's the initial load
+        if (isInitialLoad.current || timeSinceLastLoad > CACHE_DURATION) {
+          loadProfileData();
+          isInitialLoad.current = false;
+        } else {
+          console.log('[Profile] Using cached data, skipping reload');
+        }
+        
+        // Restore scroll position after a short delay
+        setTimeout(() => {
+          if (savedScrollPosition.current > 0 && scrollRef.current) {
+            scrollRef.current.scrollTo({ 
+              y: savedScrollPosition.current, 
+              animated: false 
+            });
+          }
+        }, 100);
       }
     }, [user?.id])
   );
@@ -71,7 +94,10 @@ export default function ProfileScreen() {
     if (!user?.id) return;
 
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load
+      if (!userStats && !achievementStats) {
+        setLoading(true);
+      }
       setError(null);
 
       // Load user stats and achievement stats in parallel
@@ -82,6 +108,7 @@ export default function ProfileScreen() {
 
       setUserStats(stats);
       setAchievementStats(achStats);
+      lastLoadTime.current = Date.now();
     } catch (err) {
       console.error('Error loading profile data:', err);
       setError('Failed to load profile data');
@@ -98,6 +125,8 @@ export default function ProfileScreen() {
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
+      // Save scroll position
+      savedScrollPosition.current = event.contentOffset.y;
     },
   });
 
@@ -169,6 +198,9 @@ export default function ProfileScreen() {
           achievementsService.clearUserCache(user.id)
         ]);
         
+        // Force reload by resetting cache time
+        lastLoadTime.current = 0;
+        
         // Reload data
         await loadProfileData();
       }
@@ -185,13 +217,13 @@ export default function ProfileScreen() {
       id: 'notifications',
       icon: 'notifications',
       label: 'Notifications',
-      route: '/notification-settings'
+      route: '/notifications'
     },
     {
       id: 'achievements',
       icon: 'trophy',
       label: 'Achievements',
-      route: '/achievement-settings'
+      route: '/achievements'
     },
     {
       id: 'connection',
@@ -208,7 +240,14 @@ export default function ProfileScreen() {
   ];
 
   const handleQuickActionPress = (action: QuickAction) => {
-    router.push(action.route as any);
+    console.log('[Profile] Quick action pressed:', action.id, action.route);
+    try {
+      console.log('[Profile] Attempting navigation to:', action.route);
+      router.push(action.route as any);
+      console.log('[Profile] Navigation call completed');
+    } catch (error) {
+      console.error('[Profile] Navigation error:', error);
+    }
   };
 
   if (!user) {
@@ -242,6 +281,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <Animated.ScrollView
+        ref={scrollRef}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         refreshControl={
@@ -260,13 +300,21 @@ export default function ProfileScreen() {
 
         {/* Compact Profile Header with Stats */}
         {!loading && !error && userStats && (
-          <CompactProfileHeader
-            userName={user.name}
-            userEmail={user.email}
-            stats={userStats}
-            profileImage={user.profileImage}
-            onEditPress={() => router.push('/edit-profile' as any)}
-          />
+          <>
+            <CompactProfileHeader
+              userName={user.name}
+              userEmail={user.email}
+              stats={userStats}
+              profileImage={user.profileImage}
+              onEditPress={() => router.push('/edit-profile' as any)}
+            />
+            
+            {/* Quick Actions Grid - Right below profile header */}
+            <QuickActionsGrid 
+              actions={quickActions}
+              onActionPress={handleQuickActionPress}
+            />
+          </>
         )}
 
         {/* Error State */}
@@ -294,12 +342,6 @@ export default function ProfileScreen() {
                   </View>
                   <FeaturedAchievements userId={user.id} />
                 </View>
-
-                {/* Quick Actions Grid */}
-                <QuickActionsGrid 
-                  actions={quickActions}
-                  onActionPress={handleQuickActionPress}
-                />
               </>
             )}
           </>

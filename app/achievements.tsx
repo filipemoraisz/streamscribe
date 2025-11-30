@@ -9,19 +9,19 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useAuth } from '../../contexts/AuthContext';
-import { achievementsService } from '../../services/achievements';
-import { AchievementCard } from '../../components/AchievementCard';
-import { AchievementStatsCard } from '../../components/AchievementStatsCard';
-import AchievementDetailModal from '../../components/AchievementDetailModal';
-import { Colors } from '../../constants/Colors';
+import { useLocalSearchParams, router, Stack } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
+import { achievementsService } from '../services/achievements';
+import { AchievementCard } from '../components/AchievementCard';
+import { AchievementStatsCard } from '../components/AchievementStatsCard';
+import AchievementDetailModal from '../components/AchievementDetailModal';
+import { Colors } from '../constants/Colors';
 import {
   Achievement,
   UserAchievement,
   AchievementProgress,
   AchievementStats,
-} from '../../types';
+} from '../types';
 
 type CategoryType = 'all' | 'viewing' | 'streaks' | 'completions' | 'savings' | 'efficiency';
 
@@ -256,9 +256,7 @@ export default function AchievementsScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Achievements</Text>
-        </View>
+        <Stack.Screen options={{ title: 'Achievements' }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading achievements...</Text>
@@ -271,9 +269,7 @@ export default function AchievementsScreen() {
   if (error) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Achievements</Text>
-        </View>
+        <Stack.Screen options={{ title: 'Achievements' }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color={Colors.error} />
           <Text style={styles.errorTitle}>Oops!</Text>
@@ -289,16 +285,20 @@ export default function AchievementsScreen() {
   // Main content
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Achievements</Text>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => router.push('/achievement-settings' as any)}
-        >
-          <Ionicons name="settings-outline" size={24} color={Colors.text} />
-        </TouchableOpacity>
-      </View>
+      <Stack.Screen
+        options={{
+          title: 'Achievements',
+          headerBackTitle: 'Back',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/achievement-settings' as any)}
+              style={styles.headerButton}
+            >
+              <Ionicons name="settings-outline" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       {/* Content */}
       <ScrollView
@@ -342,25 +342,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.text,
-    flex: 1,
-  },
-  settingsButton: {
+  headerButton: {
     padding: 8,
+    marginRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
