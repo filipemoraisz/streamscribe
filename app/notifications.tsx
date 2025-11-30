@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useLayoutEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { router, useNavigation } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { useAuth } from '../contexts/AuthContext';
 import { notificationHistoryService } from '../services/notificationHistory';
 
 interface NotificationItem {
   id: string;
-  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync';
+  type: 'episode_release' | 'streaming_availability' | 'recommendation' | 'progress_sync' | 'achievement_unlock';
   title: string;
   body: string;
   timestamp: string;
@@ -26,24 +26,9 @@ interface NotificationItem {
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
-  const navigation = useNavigation();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Set header right button
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={() => router.push('/notification-settings' as any)}
-          style={styles.headerButton}
-        >
-          <Ionicons name="settings-outline" size={24} color={Colors.text} />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
 
   // Load notification history
   const loadNotifications = useCallback(async (showRefresh = true) => {
@@ -242,6 +227,20 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: 'Notifications',
+          headerBackTitle: 'Back',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/notification-settings' as any)}
+              style={styles.headerButton}
+            >
+              <Ionicons name="settings-outline" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <FlatList
         data={notifications}
         renderItem={renderNotificationItem}
