@@ -27,6 +27,7 @@ export default function DetailsScreen() {
   const [streamingOptions, setStreamingOptions] = useState<StreamingOption[]>([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [movieWatched, setMovieWatched] = useState(false);
+  const [rewatchCount, setRewatchCount] = useState(0);
   const [showProgress, setShowProgress] = useState<ShowProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export default function DetailsScreen() {
           const watchlist = await storageService.getWatchlist();
           const watchlistItem = watchlist.find(w => w.id === itemId && w.type === 'movie');
           setMovieWatched(watchlistItem?.watched || false);
+          setRewatchCount(watchlistItem?.rewatch_count || 0);
         }
       } catch (error) {
         console.error('Error checking watchlist status:', error);
@@ -115,6 +117,7 @@ export default function DetailsScreen() {
           release_date: itemType === 'movie' ? releaseDate : undefined,
           first_air_date: itemType === 'tv' ? releaseDate : undefined,
           vote_average: item.vote_average,
+          watched: false,
         });
         setIsInWatchlist(true);
       }
@@ -143,12 +146,25 @@ export default function DetailsScreen() {
           poster_path: item.poster_path,
           release_date: releaseDate,
           vote_average: item.vote_average,
+          watched: true,
         });
         setMovieWatched(true);
         setIsInWatchlist(true);
+        setRewatchCount(0);
       }
     } catch (error) {
       console.error('Error marking movie as watched:', error);
+    }
+  };
+
+  const handleRewatch = async () => {
+    if (!item || type !== 'movie') return;
+    try {
+      const itemId = parseInt(id as string);
+      await storageService.incrementRewatch(itemId, 'movie');
+      setRewatchCount(prev => prev + 1);
+    } catch (error) {
+      console.error('Error incrementing rewatch:', error);
     }
   };
 
@@ -229,24 +245,60 @@ export default function DetailsScreen() {
                 </Text>
               </View>
 
+              {/* Temporary Debug Row */}
+              <View style={{ padding: 8, backgroundColor: '#333', marginBottom: 12, borderRadius: 4 }}>
+                <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>DEBUG STATE:</Text>
+                <Text style={{ color: '#ccc', fontSize: 10 }}>In Watchlist: {isInWatchlist ? 'TRUE' : 'FALSE'}</Text>
+                <Text style={{ color: '#ccc', fontSize: 10 }}>Watched: {movieWatched ? 'TRUE' : 'FALSE'}</Text>
+                <Text style={{ color: '#ccc', fontSize: 10 }}>Rewatch Count: {rewatchCount}</Text>
+              </View>
+
               <View style={styles.buttonContainer}>
                 {type === 'movie' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.primaryButton,
-                      movieWatched && styles.watchedButton
-                    ]}
-                    onPress={handleMarkMovieWatched}
-                  >
-                    <Ionicons
-                      name={movieWatched ? "checkmark-circle" : "checkmark-circle-outline"}
-                      size={20}
-                      color={Colors.text}
-                    />
-                    <Text style={styles.primaryButtonText}>
-                      {movieWatched ? 'Watched' : 'Mark as Watched'}
-                    </Text>
-                  </TouchableOpacity>
+                  <>
+                    {movieWatched ? (
+                      <View style={styles.watchedContainer}>
+                        <View style={styles.watchedLabel}>
+                          <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                          <Text style={styles.watchedLabelText}>Watched</Text>
+                        </View>
+
+                        <View style={styles.rewatchContainer}>
+                          <Text style={styles.rewatchText}>Rewatched: {rewatchCount} times</Text>
+                          <TouchableOpacity style={styles.rewatchButton} onPress={handleRewatch}>
+                            <Ionicons name="add" size={16} color={Colors.text} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.actionRow}>
+                        <TouchableOpacity
+                          style={[styles.primaryButton, styles.flexButton]}
+                          onPress={isInWatchlist ? handleMarkMovieWatched : handleWatchlistPress}
+                        >
+                          <Ionicons
+                            name={isInWatchlist ? "checkmark-circle-outline" : "bookmark-outline"}
+                            size={20}
+                            color={Colors.text}
+                          />
+                          <Text style={styles.primaryButtonText}>
+                            {isInWatchlist ? 'Mark as Watched' : 'Add to Watchlist'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={isInWatchlist ? handleWatchlistPress : handleMarkMovieWatched}
+                        >
+                          <Ionicons
+                            name={isInWatchlist ? "bookmark" : "checkmark"}
+                            size={24}
+                            color={Colors.primary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </>
                 )}
 
                 {type === 'tv' && (
@@ -341,27 +393,29 @@ export default function DetailsScreen() {
                   </View>
                 )}
 
-                <TouchableOpacity
-                  style={[
-                    styles.secondaryButton,
-                    isInWatchlist && styles.secondaryButtonActive,
-                  ]}
-                  onPress={handleWatchlistPress}
-                >
-                  <Ionicons
-                    name={isInWatchlist ? "bookmark" : "bookmark-outline"}
-                    size={20}
-                    color={isInWatchlist ? Colors.primary : Colors.text}
-                  />
-                  <Text
+                {type === 'tv' && (
+                  <TouchableOpacity
                     style={[
-                      styles.secondaryButtonText,
-                      isInWatchlist && styles.secondaryButtonTextActive,
+                      styles.secondaryButton,
+                      isInWatchlist && styles.secondaryButtonActive,
                     ]}
+                    onPress={handleWatchlistPress}
                   >
-                    {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons
+                      name={isInWatchlist ? "bookmark" : "bookmark-outline"}
+                      size={20}
+                      color={isInWatchlist ? Colors.primary : Colors.text}
+                    />
+                    <Text
+                      style={[
+                        styles.secondaryButtonText,
+                        isInWatchlist && styles.secondaryButtonTextActive,
+                      ]}
+                    >
+                      {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -488,6 +542,18 @@ const styles = StyleSheet.create({
   },
   posterContainer: {
     marginRight: 16,
+    width: 120,
+    height: 180,
+    borderRadius: 8,
+    backgroundColor: '#000',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
   },
   poster: {
     width: 120,
@@ -668,6 +734,59 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  watchedContainer: {
+    gap: 12,
+  },
+  watchedLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    padding: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+  },
+  watchedLabelText: {
+    color: Colors.success,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  rewatchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    padding: 12,
+    borderRadius: 8,
+  },
+  rewatchText: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+  },
+  rewatchButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.card,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  flexButton: {
+    flex: 1,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },

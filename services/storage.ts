@@ -5,10 +5,11 @@ import { supabase } from './supabase';
 import { tmdbService } from './tmdb';
 
 type WatchlistAction =
-  | { type: 'ADD'; payload: Omit<WatchlistItem, 'added_date' | 'watched'> }
+  | { type: 'ADD'; payload: Omit<WatchlistItem, 'added_date'> }
   | { type: 'REMOVE'; payload: { id: number; type: 'movie' | 'tv' } }
   | { type: 'TOGGLE_WATCHED'; payload: { id: number; type: 'movie' | 'tv' } }
-  | { type: 'MARK_WATCHED'; payload: { id: number; type: 'movie' | 'tv' } };
+  | { type: 'MARK_WATCHED'; payload: { id: number; type: 'movie' | 'tv' } }
+  | { type: 'UPDATE_REWATCH'; payload: { id: number; type: 'movie' | 'tv'; count: number } };
 
 class StorageService {
   private readonly QUEUE_KEY = 'streamscribe_watchlist_queue';
@@ -64,12 +65,13 @@ class StorageService {
         try {
           if (action.type === 'ADD') {
             const item = action.payload;
-            await supabase.from('watchlists').insert({
+            await supabase.from('watchlists').upsert({
               user_id: userId,
               tmdb_id: item.id,
               media_type: item.type,
-              status: 'plan_to_watch',
-            });
+              status: item.watched ? 'completed' : 'plan_to_watch',
+              rewatch_count: item.rewatch_count || 0
+            }, { onConflict: 'user_id, tmdb_id, media_type' });
           } else if (action.type === 'REMOVE') {
             const { id, type } = action.payload;
             await supabase
@@ -98,7 +100,15 @@ class StorageService {
             const { id, type } = action.payload;
             await supabase
               .from('watchlists')
-              .update({ status: 'completed' })
+              .update({ status: 'completed', rewatch_count: 0 })
+              .eq('user_id', userId)
+              .eq('tmdb_id', id)
+              .eq('media_type', type);
+          } else if (action.type === 'UPDATE_REWATCH') {
+            const { id, type, count } = action.payload;
+            await supabase
+              .from('watchlists')
+              .update({ rewatch_count: count })
               .eq('user_id', userId)
               .eq('tmdb_id', id)
               .eq('media_type', type);
@@ -190,6 +200,7 @@ class StorageService {
                   vote_average: details.vote_average,
                   added_date: item.created_at,
                   watched: item.status === 'completed',
+                  rewatch_count: item.rewatch_count || 0,
                 });
               }
             } catch (err) {
@@ -208,7 +219,7 @@ class StorageService {
     }
   }
 
-  async addToWatchlist(item: Omit<WatchlistItem, 'added_date' | 'watched'>): Promise<void> {
+  async addToWatchlist(item: Omit<WatchlistItem, 'added_date'>): Promise<void> {
     try {
       // 1. Optimistic Update
       const key = await this.getWatchlistKey();
@@ -218,7 +229,8 @@ class StorageService {
       const newItem: WatchlistItem = {
         ...item,
         added_date: new Date().toISOString(),
-        watched: false,
+        watched: item.watched ?? false,
+        rewatch_count: item.rewatch_count ?? 0,
       };
 
       const exists = watchlist.some(w => w.id === item.id && w.type === item.type);
@@ -231,7 +243,7 @@ class StorageService {
         if (userId) {
           await this.addToQueue({
             type: 'ADD',
-            payload: item
+            payload: newItem
           });
         }
       }
@@ -319,7 +331,7 @@ class StorageService {
     }
   }
 
-  async markAsWatched(item: Omit<WatchlistItem, 'added_date' | 'watched'>): Promise<void> {
+  async markAsWatched(item: Omit<WatchlistItem, 'added_date'>): Promise<void> {
     if (item.type === 'tv') {
       console.warn('markAsWatched is not supported for TV shows in storageService. Use progressService instead.');
       return;
@@ -331,22 +343,44 @@ class StorageService {
       const localData = await AsyncStorage.getItem(key);
       const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
 
-      const updatedWatchlist = watchlist.map(w => {
-        if (w.id === item.id && w.type === item.type) {
-          return { ...w, watched: true };
+      const existingItemIndex = watchlist.findIndex(w => w.id === item.id && w.type === item.type);
+
+      if (existingItemIndex !== -1) {
+        // Update existing
+        watchlist[existingItemIndex] = {
+          ...watchlist[existingItemIndex],
+          watched: true,
+          rewatch_count: watchlist[existingItemIndex].rewatch_count ?? 0
+        };
+        await AsyncStorage.setItem(key, JSON.stringify(watchlist));
+
+        // Queue update
+        const userId = await this.getUserId();
+        if (userId) {
+          await this.addToQueue({
+            type: 'MARK_WATCHED',
+            payload: { id: item.id, type: item.type }
+          });
         }
-        return w;
-      });
+      } else {
+        // Add new item as watched
+        const newItem: WatchlistItem = {
+          ...item,
+          added_date: new Date().toISOString(),
+          watched: true,
+          rewatch_count: 0
+        };
+        watchlist.push(newItem);
+        await AsyncStorage.setItem(key, JSON.stringify(watchlist));
 
-      await AsyncStorage.setItem(key, JSON.stringify(updatedWatchlist));
-
-      // 2. Queue for Sync
-      const userId = await this.getUserId();
-      if (userId) {
-        await this.addToQueue({
-          type: 'MARK_WATCHED',
-          payload: { id: item.id, type: item.type }
-        });
+        // Queue add
+        const userId = await this.getUserId();
+        if (userId) {
+          await this.addToQueue({
+            type: 'ADD',
+            payload: newItem
+          });
+        }
       }
 
     } catch (error) {
@@ -368,6 +402,33 @@ class StorageService {
       }
     } catch (error) {
       console.error('Error updating watchlist item:', error);
+    }
+  }
+
+  async incrementRewatch(id: number, type: 'movie' | 'tv'): Promise<void> {
+    try {
+      // 1. Optimistic Update
+      const key = await this.getWatchlistKey();
+      const localData = await AsyncStorage.getItem(key);
+      const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
+
+      const item = watchlist.find(w => w.id === id && w.type === type);
+      if (item) {
+        const newCount = (item.rewatch_count || 0) + 1;
+        item.rewatch_count = newCount;
+        await AsyncStorage.setItem(key, JSON.stringify(watchlist));
+
+        // 2. Queue for Sync
+        const userId = await this.getUserId();
+        if (userId) {
+          await this.addToQueue({
+            type: 'UPDATE_REWATCH',
+            payload: { id, type, count: newCount }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error incrementing rewatch count:', error);
     }
   }
 }

@@ -93,6 +93,7 @@ export interface WatchlistItem {
   vote_average: number;
   added_date: string;
   watched: boolean;
+  rewatch_count?: number;
   providerCache?: {
     timestamp: number;
     data: StreamingOption[];
