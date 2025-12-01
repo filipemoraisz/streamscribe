@@ -146,7 +146,8 @@ class AuthService {
 
   async saveUserPreferences(preferences: Partial<UserPreferences>): Promise<{ success: boolean; message: string }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return { success: false, message: 'User not authenticated' };
 
       const { error } = await supabase

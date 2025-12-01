@@ -214,6 +214,12 @@ export default function ProfileScreen() {
   // Quick actions configuration
   const quickActions: QuickAction[] = [
     {
+      id: 'subscriptions',
+      icon: 'tv',
+      label: 'Subscriptions',
+      route: '/(onboarding)/services'
+    },
+    {
       id: 'notifications',
       icon: 'notifications',
       label: 'Notifications',
@@ -226,16 +232,10 @@ export default function ProfileScreen() {
       route: '/achievements'
     },
     {
-      id: 'connection',
-      icon: 'wifi',
-      label: 'Connection',
-      route: '/connection-test'
-    },
-    {
-      id: 'history',
-      icon: 'time',
-      label: 'History',
-      route: '/history'
+      id: 'settings',
+      icon: 'settings',
+      label: 'Settings',
+      route: '/settings'
     }
   ];
 

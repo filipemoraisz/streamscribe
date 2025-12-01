@@ -280,6 +280,28 @@ class StorageService {
     }
   }
 
+  async updateWatchlistStatus(id: number, type: 'movie' | 'tv', status: 'plan_to_watch' | 'watching' | 'completed'): Promise<void> {
+    try {
+      const userId = await this.getUserId();
+      if (!userId) return;
+
+      // Update directly in Supabase
+      const { error } = await supabase
+        .from('watchlists')
+        .update({ status })
+        .eq('user_id', userId)
+        .eq('tmdb_id', id)
+        .eq('media_type', type);
+
+      if (error) throw error;
+      
+      console.log(`[Storage] Updated watchlist status for ${type} ${id} to ${status}`);
+    } catch (error) {
+      console.error('Error updating watchlist status:', error);
+      throw error;
+    }
+  }
+
   async toggleWatched(id: number, type: 'movie' | 'tv'): Promise<void> {
     try {
       // 1. Optimistic Update

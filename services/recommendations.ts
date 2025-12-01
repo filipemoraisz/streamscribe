@@ -148,6 +148,11 @@ class RecommendationService {
           // Fetch from Service (handles Supabase Cache + API)
           const streamingOptions = await tmdbService.getWatchProviders(item.id, item.type);
 
+          console.log(`[Recommendations] Streaming options for "${item.title}":`, {
+            totalOptions: streamingOptions?.length || 0,
+            providers: streamingOptions?.map(opt => ({ id: opt.service.id, name: opt.service.name, type: opt.type })) || [],
+          });
+
           // Update Local Cache (optional, for offline support)
           item.providerCache = {
             timestamp: Date.now(),

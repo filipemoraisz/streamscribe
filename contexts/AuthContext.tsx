@@ -89,8 +89,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshPreferences = async () => {
     if (user) {
+      console.log('[AuthContext] Refreshing preferences for user:', user.id);
       const prefs = await authService.getUserPreferences(user.id);
+      console.log('[AuthContext] Fetched preferences:', {
+        subscribedServices: prefs?.subscribed_services || [],
+      });
       setPreferences(prefs);
+      console.log('[AuthContext] Preferences state updated');
     }
   };
 

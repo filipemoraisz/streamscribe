@@ -39,6 +39,13 @@ export default function SettingsScreen() {
             <ScrollView style={styles.content}>
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Preferences</Text>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(onboarding)/services')}>
+                        <View style={styles.menuItemLeft}>
+                            <Ionicons name="tv-outline" size={22} color={Colors.text} />
+                            <Text style={styles.menuItemText}>Streaming Subscriptions</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notification-settings')}>
                         <View style={styles.menuItemLeft}>
                             <Ionicons name="notifications-outline" size={22} color={Colors.text} />

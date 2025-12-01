@@ -533,3 +533,56 @@ export interface QuickAction {
   route: string;
   badge?: number; // Optional notification badge
 }
+
+// Start Watching Widget Types
+
+export interface RecommendationItem {
+  id: number;
+  type: 'movie' | 'tv';
+  title: string;
+  poster_path: string | null;
+  vote_average: number;
+  release_date?: string;
+  first_air_date?: string;
+  providerName: string;
+  providerLogoUrl?: string;
+  source: 'watchlist' | 'taste';
+  tasteScore?: number;
+  genres?: number[];
+}
+
+export interface GenreScore {
+  genreId: number;
+  genreName: string;
+  count: number;
+  avgRating: number;
+}
+
+export interface TasteProfile {
+  userId: string;
+  favoriteGenres: GenreScore[];
+  averageRating: number;
+  contentTypePreference: {
+    movie: number;
+    tv: number;
+  };
+  watchFrequency: {
+    moviesPerWeek: number;
+    episodesPerWeek: number;
+  };
+  recentlyWatched: number[];
+  preferredProviders: string[];
+}
+
+export interface SwipeAction {
+  type: 'watched' | 'dismissed' | 'removed';
+  itemId: number;
+  timestamp: string;
+}
+
+export interface RecommendationQueue {
+  watchlistItems: RecommendationItem[];
+  tasteItems: RecommendationItem[];
+  currentPhase: 'watchlist' | 'taste';
+  dismissedIds: Set<string>;
+}

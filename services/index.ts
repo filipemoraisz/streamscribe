@@ -11,6 +11,18 @@ export { notificationSyncService } from './notificationSync';
 export { recommendationService } from './recommendations';
 export type { MonthlyRecommendation, ProviderRecommendation } from './recommendations';
 
+// Taste Profile Service
+export { tasteProfileService } from './tasteProfileService';
+
+// Recommendation Queue Service
+export { recommendationQueueService } from './recommendationQueueService';
+
+// Swipe Action Service
+export { swipeActionService } from './swipeActionService';
+
+// Image Cache Service
+export { imageCacheService } from './imageCache';
+
 // Achievements Service
 export { achievementsService } from './achievements';
 export { achievementChecker } from './achievementChecker';

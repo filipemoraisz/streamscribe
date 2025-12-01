@@ -5,21 +5,31 @@ import { Colors } from '../../constants/Colors';
 import { authService } from '../../services/auth';
 import { useAuth } from '../../contexts/AuthContext';
 
-// Mock list of popular services
+// Popular streaming services with TMDB provider IDs
 const POPULAR_SERVICES = [
-    { id: 'netflix', name: 'Netflix', icon: 'https://image.tmdb.org/t/p/original/t2yyOv40HZeVlLjDaoVHO4NsZ0I.jpg' },
-    { id: 'amazon', name: 'Prime Video', icon: 'https://image.tmdb.org/t/p/original/emthp39XA2YScoYL1p0sdbAH2WA.jpg' },
-    { id: 'disney', name: 'Disney+', icon: 'https://image.tmdb.org/t/p/original/7qe34O5qW89K8OSUP0D5j96vxl5.jpg' },
-    { id: 'hbo', name: 'HBO Max', icon: 'https://image.tmdb.org/t/p/original/zIxhJps7652579g5azVwnJ8749z.jpg' },
-    { id: 'hulu', name: 'Hulu', icon: 'https://image.tmdb.org/t/p/original/z83o395-7Fv4-4b1-8-9d-1.jpg' }, // Placeholder, need actual Hulu logo URL if possible, or use local asset
-    { id: 'apple', name: 'Apple TV+', icon: 'https://image.tmdb.org/t/p/original/4KAy34EHvRM25Ih8wb82AuGU7zJ.jpg' },
+    { id: '8', name: 'Netflix', icon: 'https://image.tmdb.org/t/p/original/9A1JSVmSxsyaBK4SUFsYVqbAYfW.jpg' },
+    { id: '9', name: 'Prime Video', icon: 'https://image.tmdb.org/t/p/original/emthp39XA2YScoYL1p0sdbAH2WA.jpg' },
+    { id: '337', name: 'Disney+', icon: 'https://image.tmdb.org/t/p/original/dgPueyEdOwpQ10fjuhL2WYFQwQs.jpg' },
+    { id: '1899', name: 'HBO Max', icon: 'https://image.tmdb.org/t/p/original/Ajqyt5aNxNGjmF9uOfxArGrdf3X.jpg' },
+    { id: '15', name: 'Hulu', icon: 'https://image.tmdb.org/t/p/original/zxrVdFjIjLqkfnwyghnfywTn3Lh.jpg' },
+    { id: '350', name: 'Apple TV+', icon: 'https://image.tmdb.org/t/p/original/2E03IAZsX4ZaUqM7tXlctEPMGWS.jpg' },
 ];
 
 export default function ServicesScreen() {
-    const { user } = useAuth();
+    const { user, preferences, refreshPreferences } = useAuth();
     const router = useRouter();
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isOnboarding, setIsOnboarding] = useState(true);
+
+    // Load existing preferences when component mounts
+    React.useEffect(() => {
+        if (preferences) {
+            setSelectedServices(preferences.subscribed_services || []);
+            // If preferences exist and onboarding is completed, we're in settings mode
+            setIsOnboarding(!preferences.onboarding_completed);
+        }
+    }, [preferences]);
 
     const toggleService = (serviceId: string) => {
         setSelectedServices(prev =>
@@ -30,8 +40,8 @@ export default function ServicesScreen() {
     };
 
     const handleContinue = async () => {
-        if (selectedServices.length === 0) {
-            // Allow skipping, but at least one service is recommended
+        if (selectedServices.length === 0 && isOnboarding) {
+            // Allow skipping during onboarding
             console.log('No services selected, but continuing anyway');
         }
 
@@ -39,17 +49,32 @@ export default function ServicesScreen() {
         try {
             // Save selected services to user preferences
             if (user) {
-                await authService.saveUserPreferences({
+                console.log('[ServicesScreen] Saving subscriptions:', selectedServices);
+                const result = await authService.saveUserPreferences({
                     subscribed_services: selectedServices,
                 });
+                console.log('[ServicesScreen] Save result:', result);
+                // Refresh preferences in context
+                await refreshPreferences();
+                console.log('[ServicesScreen] Preferences refreshed');
             }
             
-            // Navigate to next step (Budget)
-            router.push('/(onboarding)/budget');
+            // Navigate based on context
+            if (isOnboarding) {
+                // During onboarding, go to next step
+                router.push('/(onboarding)/budget');
+            } else {
+                // From settings, go back
+                router.back();
+            }
         } catch (error) {
             console.error('Error saving services:', error);
-            // Still navigate even if save fails
-            router.push('/(onboarding)/budget');
+            // Navigate anyway
+            if (isOnboarding) {
+                router.push('/(onboarding)/budget');
+            } else {
+                router.back();
+            }
         } finally {
             setLoading(false);
         }
@@ -63,22 +88,28 @@ export default function ServicesScreen() {
             ]}
             onPress={() => toggleService(item.id)}
         >
-            <Image source={{ uri: item.icon }} style={styles.serviceIcon} />
-            <View style={styles.serviceOverlay}>
+            <View style={styles.serviceContent}>
+                <Image source={{ uri: item.icon }} style={styles.serviceIcon} />
+                <Text style={styles.serviceName}>{item.name}</Text>
                 {selectedServices.includes(item.id) && (
                     <View style={styles.checkmark}>
                         <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                 )}
             </View>
-            <Text style={styles.serviceName}>{item.name}</Text>
         </TouchableOpacity>
     );
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Select Your Services</Text>
-            <Text style={styles.subtitle}>Select the streaming services you use to get personalized recommendations.</Text>
+            <Text style={styles.title}>
+                {isOnboarding ? 'Select Your Services' : 'Manage Subscriptions'}
+            </Text>
+            <Text style={styles.subtitle}>
+                {isOnboarding 
+                    ? 'Select the streaming services you use to get personalized recommendations.'
+                    : 'Update your streaming subscriptions to get accurate recommendations.'}
+            </Text>
 
             <FlatList
                 data={POPULAR_SERVICES}
@@ -95,7 +126,7 @@ export default function ServicesScreen() {
                 disabled={loading}
             >
                 <Text style={styles.continueButtonText}>
-                    {loading ? 'Saving...' : 'Continue'}
+                    {loading ? 'Saving...' : (isOnboarding ? 'Continue' : 'Save Changes')}
                 </Text>
             </TouchableOpacity>
         </View>
@@ -129,51 +160,52 @@ const styles = StyleSheet.create({
     },
     serviceCard: {
         width: '48%',
-        aspectRatio: 1,
         marginBottom: 16,
         borderRadius: 16,
         overflow: 'hidden',
-        position: 'relative',
         backgroundColor: Colors.surface,
+        borderWidth: 2,
+        borderColor: Colors.border,
     },
     serviceCardSelected: {
-        borderWidth: 3,
+        borderWidth: 2,
         borderColor: Colors.primary,
+        backgroundColor: Colors.primary + '10',
+    },
+    serviceContent: {
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 140,
     },
     serviceIcon: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    serviceOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 60,
+        height: 60,
+        borderRadius: 12,
+        marginBottom: 12,
+        resizeMode: 'contain',
     },
     checkmark: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         backgroundColor: Colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
     checkmarkText: {
         color: 'white',
-        fontSize: 24,
+        fontSize: 16,
         fontWeight: 'bold',
     },
     serviceName: {
-        position: 'absolute',
-        bottom: 12,
-        left: 12,
-        color: 'white',
-        fontSize: 16,
-        fontWeight: 'bold',
-        textShadowColor: 'rgba(0,0,0,0.75)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 3,
+        color: Colors.text,
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     continueButton: {
         position: 'absolute',

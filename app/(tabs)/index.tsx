@@ -1,7 +1,7 @@
 import { ImpactHeader } from '@/components/ImpactHeader';
 import { MediaSection } from '@/components/MediaSection';
 import { ConnectionBanner } from '@/components/ConnectionBanner';
-import { RealTimeRecommendationWidget } from '@/components/RealTimeRecommendationWidget';
+import { StartWatchingWidget } from '@/components/start-watching-widget/StartWatchingWidget';
 import { useRealTimeStatus } from '@/components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '@/components/hooks/useRealTimeUpdates';
 import { useNotificationCount } from '@/components/hooks/useNotificationCount';
@@ -56,6 +56,7 @@ export default function HomeScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   const scrollY = useSharedValue(0);
 
@@ -169,6 +170,7 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    setRefreshCounter(prev => prev + 1); // Trigger widget refresh
     loadAllData();
   }, []);
 
@@ -310,9 +312,10 @@ export default function HomeScreen() {
           />
         )}
 
-        {/* Real-time Recommendations */}
-        <RealTimeRecommendationWidget
+        {/* Start Watching Widget - Swipeable Recommendations */}
+        <StartWatchingWidget
           onItemPress={(item, type) => handleItemPress(item, type)}
+          refreshTrigger={refreshCounter} // Refresh on manual pull-to-refresh
         />
 
         {sections.map((section) => (

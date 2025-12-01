@@ -1,6 +1,7 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { AchievementNotificationProvider } from "../components/AchievementNotificationProvider";
 import { Colors } from "../constants/Colors";
@@ -29,8 +30,9 @@ function RootLayoutNav() {
     } else if (user && inAuthGroup) {
       // Redirect to home if authenticated and trying to access auth screens
       router.replace('/(tabs)');
-    } else if (user && inOnboardingGroup && preferences?.onboarding_completed) {
+    } else if (user && inOnboardingGroup && preferences?.onboarding_completed && segments[1] !== 'services') {
       // Redirect to home if authenticated, in onboarding, but already completed it
+      // EXCEPT for the services screen which can be accessed from settings
       router.replace('/(tabs)');
     }
   }, [user, preferences, loading, segments]);
@@ -102,12 +104,14 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AchievementNotificationProvider>
-          <RootLayoutNav />
-        </AchievementNotificationProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AchievementNotificationProvider>
+            <RootLayoutNav />
+          </AchievementNotificationProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
