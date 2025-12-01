@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { useAuth } from '@/contexts/AuthContext';
 import { RecommendationItem } from '@/types';
 import { recommendationQueueService } from '@/services/recommendationQueueService';
@@ -65,6 +66,25 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
 
   // Get subscribed services from preferences
   const subscribedServices = preferences?.subscribed_services || [];
+
+  // AI icon blinking animation
+  const aiIconOpacity = useSharedValue(1);
+
+  useEffect(() => {
+    // Create a more noticeable blinking animation
+    aiIconOpacity.value = withRepeat(
+      withTiming(0.2, {
+        duration: 1500,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1, // Infinite repeat
+      true // Reverse (fade in and out)
+    );
+  }, []);
+
+  const aiIconAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: aiIconOpacity.value,
+  }));
 
   // Save dismissed IDs to storage (Subtask 11.4, Requirement 8.10)
   const saveDismissedIds = useCallback(async (dismissedIds: Set<string>) => {
@@ -721,9 +741,14 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
             <Text style={styles.viewAllLink}>View All</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.timestamp}>
-          {relativeTime}
-        </Text>
+        <View style={styles.timestampRow}>
+          <Animated.View style={aiIconAnimatedStyle}>
+            <Ionicons name="sparkles" size={14} color="#FF8C00" />
+          </Animated.View>
+          <Text style={styles.timestamp}>
+            {relativeTime}
+          </Text>
+        </View>
       </View>
 
       {/* Horizontal Card Layout (Subtask 7.4) */}
@@ -786,10 +811,15 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontWeight: '600',
   },
+  timestampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
   timestamp: {
     fontSize: 12,
     color: '#666',
-    marginTop: 4,
   },
   cardsContainer: {
     flexDirection: 'row',
