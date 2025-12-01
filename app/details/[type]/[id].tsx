@@ -135,9 +135,11 @@ export default function DetailsScreen() {
       const releaseDate = 'title' in item ? item.release_date : item.first_air_date;
 
       if (movieWatched) {
-        // Toggle off - just update local state, actual toggle logic in storage service handles status
-        await storageService.toggleWatched(itemId, 'movie');
+        // Unwatch: mark as plan_to_watch, reset rewatch count, keep in watchlist
+        await storageService.unwatchMovie(itemId);
         setMovieWatched(false);
+        setRewatchCount(0);
+        setIsInWatchlist(true); // Keep in watchlist
       } else {
         await storageService.markAsWatched({
           id: itemId,
@@ -258,10 +260,13 @@ export default function DetailsScreen() {
                   <>
                     {movieWatched ? (
                       <View style={styles.watchedContainer}>
-                        <View style={styles.watchedLabel}>
+                        <TouchableOpacity 
+                          style={styles.watchedLabel}
+                          onPress={handleMarkMovieWatched}
+                        >
                           <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-                          <Text style={styles.watchedLabelText}>Watched</Text>
-                        </View>
+                          <Text style={styles.watchedLabelText}>Watched (tap to unwatch)</Text>
+                        </TouchableOpacity>
 
                         <View style={styles.rewatchContainer}>
                           <Text style={styles.rewatchText}>Rewatched: {rewatchCount} times</Text>

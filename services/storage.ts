@@ -458,6 +458,57 @@ class StorageService {
       console.error('Error incrementing rewatch count:', error);
     }
   }
+
+  async unwatchMovie(id: number): Promise<void> {
+    try {
+      // 1. Optimistic Update
+      const key = await this.getWatchlistKey();
+      const localData = await AsyncStorage.getItem(key);
+      const watchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
+
+      const item = watchlist.find(w => w.id === id && w.type === 'movie');
+      if (item) {
+        // Mark as unwatched and reset rewatch count
+        item.watched = false;
+        item.rewatch_count = 0;
+        await AsyncStorage.setItem(key, JSON.stringify(watchlist));
+
+        // 2. Update status in database to plan_to_watch
+        const userId = await this.getUserId();
+        if (userId) {
+          try {
+            const { error } = await supabase
+              .from('watchlists')
+              .update({ 
+                status: 'plan_to_watch',
+                rewatch_count: 0
+              })
+              .eq('user_id', userId)
+              .eq('tmdb_id', id)
+              .eq('media_type', 'movie');
+
+            if (error) {
+              console.error('Error updating movie status:', error);
+              // Queue for later if update fails
+              await this.addToQueue({
+                type: 'TOGGLE_WATCHED',
+                payload: { id, type: 'movie' }
+              });
+            }
+          } catch (err) {
+            console.error('Error syncing unwatch:', err);
+            // Queue for later
+            await this.addToQueue({
+              type: 'TOGGLE_WATCHED',
+              payload: { id, type: 'movie' }
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error unwatching movie:', error);
+    }
+  }
 }
 
 export const storageService = new StorageService();

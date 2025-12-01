@@ -137,15 +137,25 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
       translateX.value = translationX;
       translateY.value = translationY;
       
-      // Determine current swipe direction for overlay
-      const direction = getSwipeDirection(
-        translationX,
-        translationY,
-        velocityX,
-        velocityY
-      );
+      // Show direction hint immediately when user starts swiping (even small movements)
+      // This provides instant visual feedback about what action will happen
+      let hintDirection: 'left' | 'right' | 'up' | null = null;
       
-      runOnJS(updateSwipeDirection)(direction);
+      // Determine hint direction based on dominant axis (lower threshold for visual feedback)
+      const absX = Math.abs(translationX);
+      const absY = Math.abs(translationY);
+      
+      if (absX > 10 || absY > 10) { // Very low threshold just to show the label
+        if (absX > absY) {
+          // Horizontal swipe
+          hintDirection = translationX > 0 ? 'right' : 'left';
+        } else if (translationY < 0) {
+          // Vertical swipe (only upward)
+          hintDirection = 'up';
+        }
+      }
+      
+      runOnJS(updateSwipeDirection)(hintDirection);
     } else if (state === State.END || state === State.CANCELLED) {
       // Prevent processing if disabled or already exiting (Subtask 11.3)
       if (isExiting.value) return;
@@ -216,6 +226,10 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
     // Calculate scale based on movement
     const scale = 1 - Math.abs(translateX.value) / 1000;
     
+    // Increase zIndex when being dragged to appear on top of other cards
+    // Use a much higher base z-index when dragging to ensure it's always on top
+    const isDragging = Math.abs(translateX.value) > 5 || Math.abs(translateY.value) > 5;
+    
     return {
       transform: [
         { translateX: translateX.value },
@@ -224,6 +238,8 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
         { scale: Math.max(scale, 0.8) },
       ],
       opacity: opacity.value,
+      zIndex: isDragging ? 1000 : index,
+      elevation: isDragging ? 1000 : 8,
     };
   });
 
@@ -238,8 +254,13 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
       ? SWIPE_THRESHOLD.vertical 
       : SWIPE_THRESHOLD.horizontal;
     
+    // Show overlay more prominently even with small movements
+    // Start at 0.4 opacity immediately, then scale up to 1.0 as they approach threshold
+    const progress = Math.abs(translation) / threshold;
+    const opacity = Math.min(0.4 + (progress * 0.6), 1);
+    
     return {
-      opacity: calculateOverlayOpacity(translation, threshold),
+      opacity,
     };
   });
 
@@ -278,7 +299,7 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
       waitFor={panRef}
       onHandlerStateChange={handleTap}
     >
-      <Animated.View>
+      <Animated.View style={{ zIndex: gestureState === 'dragging' ? 1000 : index }}>
         <PanGestureHandler
           ref={panRef}
           onGestureEvent={panGestureHandler}

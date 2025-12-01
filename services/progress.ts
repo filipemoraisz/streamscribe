@@ -402,7 +402,18 @@ class ProgressService {
             await AsyncStorage.setItem(key, JSON.stringify(filtered));
             await this.updateShowProgressLocal(showId);
 
-            // 2. Queue for Sync
+            // 2. Check if ALL episodes are now unwatched - if so, update watchlist status to plan_to_watch
+            const remainingWatchedForShow = filtered.filter(ep => ep.show_id === showId && ep.watched);
+            if (remainingWatchedForShow.length === 0) {
+                console.log(`[Progress] All episodes unwatched for show ${showId}, updating watchlist status to plan_to_watch`);
+                try {
+                    await storageService.updateWatchlistStatus(showId, 'tv', 'plan_to_watch');
+                } catch (statusError) {
+                    console.error('[Progress] Error updating watchlist status:', statusError);
+                }
+            }
+
+            // 3. Queue for Sync
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 await this.addToQueue({
@@ -493,7 +504,7 @@ class ProgressService {
                     }
                 }
 
-                // Auto-add to watchlist if not present
+                // Auto-add to watchlist if not present, with status 'watching' since episodes are watched
                 const inWatchlist = await storageService.isInWatchlist(showId, 'tv');
                 if (!inWatchlist) {
                     try {
@@ -508,10 +519,20 @@ class ProgressService {
                                 vote_average: showDetails.vote_average,
                                 watched: false,
                             });
-                            console.log(`[Progress] Auto-added show ${showId} to watchlist.`);
+                            console.log(`[Progress] Auto-added show ${showId} to watchlist with status 'watching'.`);
+                            
+                            // Update status to 'watching' since we have watched episodes
+                            await storageService.updateWatchlistStatus(showId, 'tv', 'watching');
                         }
                     } catch (err) {
                         console.error('Error auto-adding to watchlist:', err);
+                    }
+                } else {
+                    // Update status to 'watching' if it was 'plan_to_watch'
+                    try {
+                        await storageService.updateWatchlistStatus(showId, 'tv', 'watching');
+                    } catch (err) {
+                        console.error('Error updating watchlist status:', err);
                     }
                 }
 

@@ -24,9 +24,17 @@ function RootLayoutNav() {
     if (!user && !inAuthGroup) {
       // Redirect to login if not authenticated
       router.replace('/(auth)/login');
-    } else if (user && !inOnboardingGroup && (!preferences || !preferences.onboarding_completed)) {
-      // Redirect to onboarding if authenticated but not completed onboarding
-      router.replace('/(onboarding)/services');
+    } else if (user && !inAuthGroup && !inOnboardingGroup) {
+      // User is authenticated, check onboarding status
+      if (preferences === null) {
+        // Preferences not loaded yet, wait
+        return;
+      }
+      
+      if (!preferences.onboarding_completed) {
+        // Redirect to onboarding if not completed
+        router.replace('/(onboarding)/services');
+      }
     } else if (user && inAuthGroup) {
       // Redirect to home if authenticated and trying to access auth screens
       router.replace('/(tabs)');

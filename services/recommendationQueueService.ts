@@ -43,6 +43,25 @@ class RecommendationQueueService {
 
       console.log('[RecommendationQueue] Watchlist queue length after load:', this.watchlistQueue.length);
 
+      // If watchlist is empty, immediately transition to taste phase
+      if (this.watchlistQueue.length === 0) {
+        console.log('[RecommendationQueue] Watchlist empty, transitioning to taste phase');
+        this.currentPhase = 'taste';
+        
+        // Load taste-based recommendations
+        await this.loadTasteBatch(userId, subscribedServices, new Set());
+        
+        console.log('[RecommendationQueue] Taste queue length after load:', this.tasteQueue.length);
+        
+        // Return first 3 items from taste queue
+        const itemCount = Math.min(3, this.tasteQueue.length);
+        const items = this.getNextItemsFromTaste(itemCount);
+        
+        console.log('[RecommendationQueue] Returning', items.length, 'taste-based items for initial display');
+        
+        return items;
+      }
+
       // Return first 3 items for display (or fewer if less available)
       // Subtask 11.2: Handle cases with only 1-2 items (Requirement 8.6)
       const itemCount = Math.min(3, this.watchlistQueue.length);
@@ -198,12 +217,14 @@ class RecommendationQueueService {
     this.isLoadingWatchlist = true;
 
     try {
-      // Get all watchlist items (we'll filter out started ones later)
+      // Get watchlist items that haven't been started yet
+      // For the Start Watching Widget, we only want 'plan_to_watch' status
+      // Once a show is marked as 'watching', it should be removed from this widget
       const { data: watchlistData, error } = await supabase
         .from('watchlists')
         .select('tmdb_id, media_type')
         .eq('user_id', userId)
-        .neq('status', 'completed')
+        .eq('status', 'plan_to_watch') // Only show items that haven't been started
         .limit(this.WATCHLIST_BATCH_SIZE * 2); // Fetch more since we'll filter
 
       if (error) throw error;
@@ -215,28 +236,16 @@ class RecommendationQueueService {
         return;
       }
 
-      // Filter out TV shows that have progress (already started)
+      // All items from the query are already 'plan_to_watch' status
+      // No need for additional filtering - just separate by type for logging
       const tvShows = watchlistData.filter(item => item.media_type === 'tv');
       const movies = watchlistData.filter(item => item.media_type === 'movie');
       
-      let unstartedTVShows = tvShows;
-      if (tvShows.length > 0) {
-        // Check which TV shows have ANY episodes watched in episode_progress table
-        const { data: progressData } = await supabase
-          .from('episode_progress')
-          .select('show_id')
-          .eq('user_id', userId)
-          .eq('watched', true)
-          .in('show_id', tvShows.map(s => s.tmdb_id));
-        
-        const showsWithProgress = new Set(progressData?.map(p => p.show_id) || []);
-        unstartedTVShows = tvShows.filter(show => !showsWithProgress.has(show.tmdb_id));
-        
-        console.log(`[RecommendationQueue] Filtered out ${tvShows.length - unstartedTVShows.length} TV shows with watched episodes`);
-      }
+      console.log(`[RecommendationQueue] Unstarted TV shows:`, tvShows.map(s => s.tmdb_id));
+      console.log(`[RecommendationQueue] Unstarted movies:`, movies.map(m => m.tmdb_id));
       
-      // Combine unstarted TV shows with all movies
-      const unstartedItems = [...unstartedTVShows, ...movies];
+      // Combine all unstarted items
+      const unstartedItems = [...tvShows, ...movies];
       
       if (unstartedItems.length === 0) {
         console.log('[RecommendationQueue] No unstarted items found');
@@ -277,21 +286,34 @@ class RecommendationQueueService {
     subscribedServices: string[],
     dismissedIds: Set<string>
   ): Promise<void> {
-    if (this.isLoadingTaste) return;
+    if (this.isLoadingTaste) {
+      console.log('[RecommendationQueue] Already loading taste batch, skipping');
+      return;
+    }
 
     this.isLoadingTaste = true;
+    console.log('[RecommendationQueue] Loading taste batch...');
+    console.log('[RecommendationQueue] Subscribed services:', subscribedServices);
+    console.log('[RecommendationQueue] Dismissed IDs count:', dismissedIds.size);
 
     try {
       // Build taste profile
+      console.log('[RecommendationQueue] Building taste profile...');
       const profile = await tasteProfileService.buildTasteProfile(userId);
+      console.log('[RecommendationQueue] Taste profile built:', {
+        favoriteGenres: profile.favoriteGenres.length,
+        contentTypePreference: profile.contentTypePreference,
+      });
 
       // Generate recommendations
+      console.log('[RecommendationQueue] Generating taste recommendations...');
       const recommendations = await tasteProfileService.generateTasteRecommendations(
         profile,
         subscribedServices,
         dismissedIds,
         this.TASTE_BATCH_SIZE
       );
+      console.log('[RecommendationQueue] Generated', recommendations.length, 'taste recommendations');
 
       // Add to queue (avoid duplicates)
       const existingIds = new Set(this.tasteQueue.map(i => `${i.type}-${i.id}`));
@@ -300,8 +322,9 @@ class RecommendationQueueService {
       );
 
       this.tasteQueue.push(...newItems);
+      console.log('[RecommendationQueue] Added', newItems.length, 'new items to taste queue. Total:', this.tasteQueue.length);
     } catch (error) {
-      console.error('Error loading taste batch:', error);
+      console.error('[RecommendationQueue] Error loading taste batch:', error);
     } finally {
       this.isLoadingTaste = false;
     }
@@ -342,12 +365,37 @@ class RecommendationQueueService {
         // Get streaming providers
         const providers = await tmdbService.getWatchProviders(item.tmdb_id, type);
         
+        console.log(`[RecommendationQueue] ${type} ${item.tmdb_id} providers:`, providers.map(p => `${p.service.name} (${p.service.id})`));
+        console.log(`[RecommendationQueue] Subscribed services:`, subscribedServices);
+        
         // Check if available on subscribed services
-        const matchingProvider = providers.find(p =>
-          subscribedServices.includes(p.service.id)
-        );
+        // Support both provider ID and provider name matching for flexibility
+        const matchingProvider = providers.find(p => {
+          // Direct ID match
+          if (subscribedServices.includes(p.service.id)) return true;
+          
+          // Fuzzy name matching for common providers
+          const providerNameLower = p.service.name?.toLowerCase() || '';
+          return subscribedServices.some(sub => {
+            const subLower = sub.toLowerCase();
+            // Match "amazon" with "Amazon Video" or "Amazon Prime Video"
+            if (subLower === 'amazon' && providerNameLower.includes('amazon')) return true;
+            // Match "netflix" with "Netflix"
+            if (subLower === 'netflix' && providerNameLower.includes('netflix')) return true;
+            // Match "hbo" with "HBO Max"
+            if (subLower === 'hbo' && providerNameLower.includes('hbo')) return true;
+            // Match "disney" with "Disney Plus"
+            if (subLower === 'disney' && providerNameLower.includes('disney')) return true;
+            return false;
+          });
+        });
 
-        if (!matchingProvider) return null;
+        if (!matchingProvider) {
+          console.log(`[RecommendationQueue] No matching provider for ${type} ${item.tmdb_id} - filtering out`);
+          return null;
+        }
+        
+        console.log(`[RecommendationQueue] Matched provider: ${matchingProvider.service.name} (${matchingProvider.service.id})`);
 
         const recommendationItem: RecommendationItem = {
           id: item.tmdb_id,
@@ -420,6 +468,20 @@ class RecommendationQueueService {
     
     for (let i = 0; i < count && this.watchlistQueue.length > 0; i++) {
       const item = this.watchlistQueue.shift();
+      if (item) items.push(item);
+    }
+
+    return items;
+  }
+
+  /**
+   * Get multiple items from taste queue
+   */
+  private getNextItemsFromTaste(count: number): RecommendationItem[] {
+    const items: RecommendationItem[] = [];
+    
+    for (let i = 0; i < count && this.tasteQueue.length > 0; i++) {
+      const item = this.tasteQueue.shift();
       if (item) items.push(item);
     }
 
