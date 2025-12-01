@@ -3,6 +3,9 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { Movie, TVShow, WatchlistItem } from '../types';
 import { MediaCard } from './MediaCard';
+import { SkeletonLoader } from './SkeletonLoader';
+import { ErrorState } from './ErrorState';
+import { EmptyState } from './EmptyState';
 
 interface MediaSectionProps {
   title: string;
@@ -14,6 +17,13 @@ interface MediaSectionProps {
   nextEpisodes?: Record<number, { season: number; episode: number }>;
   onNextEpisodePress?: (item: TVShow, season: number, episode: number) => void;
   onMovieActionPress?: (item: Movie) => void;
+  // New props for enhanced functionality
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+  emptyMessage?: string;
+  filterType?: 'all' | 'movie' | 'tv';
+  activeFilter?: 'all' | 'movie' | 'tv';
 }
 
 export const MediaSection: React.FC<MediaSectionProps> = ({
@@ -26,7 +36,25 @@ export const MediaSection: React.FC<MediaSectionProps> = ({
   nextEpisodes,
   onNextEpisodePress,
   onMovieActionPress,
+  loading = false,
+  error = null,
+  onRetry,
+  emptyMessage,
+  filterType = 'all',
+  activeFilter = 'all',
 }) => {
+  // Filter logic: hide section if filterType doesn't match activeFilter
+  const shouldHideSection = () => {
+    if (activeFilter === 'all') return false;
+    if (filterType === 'all') return false;
+    return filterType !== activeFilter;
+  };
+
+  // Don't render if section should be hidden based on filter
+  if (shouldHideSection()) {
+    return null;
+  }
+
   const renderItem = ({ item }: { item: Movie | TVShow | WatchlistItem }) => {
     // Determine the type of the item safely
     let itemType = type;
@@ -59,6 +87,42 @@ export const MediaSection: React.FC<MediaSectionProps> = ({
     );
   };
 
+  // Render loading state
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>{title}</Text>
+        <SkeletonLoader type="card" count={3} animated />
+      </View>
+    );
+  }
+
+  // Render error state
+  if (error && onRetry) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>{title}</Text>
+        <ErrorState message={error} onRetry={onRetry} />
+      </View>
+    );
+  }
+
+  // Render empty state
+  if (data.length === 0 && emptyMessage) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>{title}</Text>
+        <EmptyState
+          type="section"
+          title="No Content"
+          message={emptyMessage}
+          icon="film-outline"
+        />
+      </View>
+    );
+  }
+
+  // Render content
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>

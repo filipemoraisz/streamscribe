@@ -22,6 +22,20 @@ jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
   RN.Animated.timing = () => ({
     start: jest.fn(),
+    stop: jest.fn(),
+  });
+  RN.Animated.loop = (animation) => animation;
+  RN.Animated.sequence = (animations) => ({
+    start: jest.fn(),
+    stop: jest.fn(),
   });
   return RN;
+});
+
+// Mock @expo/vector-icons
+jest.mock('@expo/vector-icons', () => {
+  const { Text } = require('react-native');
+  return {
+    Ionicons: Text,
+  };
 });

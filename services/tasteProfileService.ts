@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { tmdbService } from './tmdb';
-import { TasteProfile, GenreScore, RecommendationItem, Movie, TVShow } from '../types';
+import { TasteProfile, GenreScore, RecommendationItem, Movie, TVShow, GenreSection } from '../types';
 
 class TasteProfileService {
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -158,6 +158,72 @@ class TasteProfileService {
     } catch (error) {
       console.error('Error generating taste recommendations:', error);
       return [];
+    }
+  }
+
+  /**
+   * Generate genre-based content sections from user's watch history
+   * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
+   */
+  async generateGenreSections(userId: string): Promise<GenreSection[]> {
+    try {
+      // Build taste profile to get genre preferences
+      const profile = await this.buildTasteProfile(userId);
+
+      // If no genre preferences, fall back to popular genres
+      if (profile.favoriteGenres.length === 0) {
+        return this.getPopularGenreSections();
+      }
+
+      // Get top 3 preferred genres
+      const topGenres = profile.favoriteGenres.slice(0, 3);
+      const sections: GenreSection[] = [];
+
+      // Fetch content for each genre
+      for (const genreScore of topGenres) {
+        // Determine content type based on user preference
+        const shouldFetchMovies = profile.contentTypePreference.movie >= 0.3;
+        const shouldFetchTV = profile.contentTypePreference.tv >= 0.3;
+
+        // Default to both if preferences are balanced
+        const fetchMovies = shouldFetchMovies || profile.contentTypePreference.movie >= profile.contentTypePreference.tv;
+        const fetchTV = shouldFetchTV || profile.contentTypePreference.tv > profile.contentTypePreference.movie;
+
+        // Fetch movies for this genre
+        if (fetchMovies) {
+          const movies = await tmdbService.discoverMoviesByGenre(genreScore.genreId);
+          if (movies.length > 0) {
+            sections.push({
+              genreId: genreScore.genreId,
+              genreName: genreScore.genreName,
+              items: movies.slice(0, 20), // Limit to 20 items per section
+              type: 'movie',
+            });
+          }
+        }
+
+        // Fetch TV shows for this genre
+        if (fetchTV && sections.length < 3) {
+          const tvShows = await tmdbService.discoverTVShowsByGenre(genreScore.genreId);
+          if (tvShows.length > 0) {
+            sections.push({
+              genreId: genreScore.genreId,
+              genreName: genreScore.genreName,
+              items: tvShows.slice(0, 20), // Limit to 20 items per section
+              type: 'tv',
+            });
+          }
+        }
+
+        // Stop if we have 3 sections
+        if (sections.length >= 3) break;
+      }
+
+      return sections;
+    } catch (error) {
+      console.error('Error generating genre sections:', error);
+      // Fall back to popular genres on error
+      return this.getPopularGenreSections();
     }
   }
 
@@ -540,6 +606,40 @@ class TasteProfileService {
     };
 
     return genreMap[genreId] || 'Unknown';
+  }
+
+  private async getPopularGenreSections(): Promise<GenreSection[]> {
+    try {
+      // Default popular genres: Action, Comedy, Drama
+      const popularGenres = [
+        { genreId: 28, genreName: 'Action' },
+        { genreId: 35, genreName: 'Comedy' },
+        { genreId: 18, genreName: 'Drama' },
+      ];
+
+      const sections: GenreSection[] = [];
+
+      for (const genre of popularGenres) {
+        // Fetch movies for this genre
+        const movies = await tmdbService.discoverMoviesByGenre(genre.genreId);
+        if (movies.length > 0) {
+          sections.push({
+            genreId: genre.genreId,
+            genreName: genre.genreName,
+            items: movies.slice(0, 20),
+            type: 'movie',
+          });
+        }
+
+        // Stop if we have 3 sections
+        if (sections.length >= 3) break;
+      }
+
+      return sections;
+    } catch (error) {
+      console.error('Error getting popular genre sections:', error);
+      return [];
+    }
   }
 }
 

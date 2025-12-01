@@ -586,3 +586,33 @@ export interface RecommendationQueue {
   currentPhase: 'watchlist' | 'taste';
   dismissedIds: Set<string>;
 }
+
+// Home Screen Enhancement Types
+
+export interface BecauseYouWatchedSection {
+  sourceId: number;
+  sourceTitle: string;
+  sourceType: 'movie' | 'tv';
+  items: (Movie | TVShow)[];
+}
+
+export interface GenreSection {
+  genreId: number;
+  genreName: string;
+  items: (Movie | TVShow)[];
+  type: 'movie' | 'tv';
+}
+
+export interface LeavingSoonItem extends Partial<Movie>, Partial<TVShow> {
+  id: number;
+  type: 'movie' | 'tv';
+  title: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  vote_average: number;
+  departureDate: string; // ISO date
+  providerName: string;
+  providerLogoUrl?: string;
+  daysRemaining: number;
+  isInWatchlist?: boolean;
+}

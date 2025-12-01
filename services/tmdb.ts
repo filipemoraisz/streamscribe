@@ -345,6 +345,16 @@ class TMDBService {
     return data.genres;
   }
 
+  async discoverMoviesByGenre(genreId: number, page: number = 1): Promise<Movie[]> {
+    const data = await this.fetchFromTMDB(`/discover/movie?with_genres=${genreId}&sort_by=popularity.desc&page=${page}`);
+    return data.results;
+  }
+
+  async discoverTVShowsByGenre(genreId: number, page: number = 1): Promise<TVShow[]> {
+    const data = await this.fetchFromTMDB(`/discover/tv?with_genres=${genreId}&sort_by=popularity.desc&page=${page}`);
+    return data.results;
+  }
+
   // Watch Providers
   async getMovieWatchProviders(movieId: number): Promise<TMDBWatchProvidersResponse> {
     return this.fetchFromTMDB(`/movie/${movieId}/watch/providers`);

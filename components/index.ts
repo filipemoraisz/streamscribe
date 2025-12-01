@@ -38,6 +38,20 @@ export { MediaSection } from './MediaSection';
 export { SearchBar } from './SearchBar';
 export { StreamingOptions } from './StreamingOptions';
 
+// Home Screen Enhancement Components
+export { EmptyState } from './EmptyState';
+export { SkeletonLoader } from './SkeletonLoader';
+export { ErrorState } from './ErrorState';
+export { default as WelcomeModal } from './WelcomeModal';
+export { ContinueWatchingSection } from './ContinueWatchingSection';
+export { BecauseYouWatchedSection } from './BecauseYouWatchedSection';
+export { GenreSection } from './GenreSection';
+export { NewThisWeekSection } from './NewThisWeekSection';
+export { LeavingSoonSection } from './LeavingSoonSection';
+export { QuickFilters } from './QuickFilters';
+export type { QuickFilterType } from './QuickFilters';
+export { SurpriseButton } from './SurpriseButton';
+
 // Types (re-export for convenience)
 export type { MonthlyRecommendation, ProviderRecommendation } from '../services/recommendations';
 export type { StreamingOption, WatchlistItem, NotificationPayload, NotificationPreferences, LocalNotification } from '../types';

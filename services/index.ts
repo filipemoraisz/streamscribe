@@ -29,6 +29,19 @@ export { achievementChecker } from './achievementChecker';
 export { achievementNotificationsService } from './achievementNotifications';
 export { achievementBackgroundTasks } from './achievementBackgroundTasks';
 
+// Onboarding Service
+export { onboardingService } from './onboarding';
+
+// Continue Watching Service
+export { continueWatchingService } from './continueWatching';
+export type { ContinueWatchingItem } from './continueWatching';
+
+// Personalization Service
+export { personalizationService } from './personalization';
+
+// Content Discovery Service
+export { contentDiscoveryService } from './contentDiscovery';
+
 // Types (re-export for convenience)
 export type {
     Episode, EpisodeProgress, Movie, Season,
