@@ -10,6 +10,8 @@ import { BecauseYouWatchedSection } from '@/components/BecauseYouWatchedSection'
 import { GenreSection } from '@/components/GenreSection';
 import { NewThisWeekSection } from '@/components/NewThisWeekSection';
 import { LeavingSoonSection } from '@/components/LeavingSoonSection';
+import { WatchlistMoviesSection } from '@/components/WatchlistMoviesSection';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { useRealTimeStatus } from '@/components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '@/components/hooks/useRealTimeUpdates';
 import { useNotificationCount } from '@/components/hooks/useNotificationCount';
@@ -54,7 +56,7 @@ type Section = {
   type: 'movie' | 'tv';
 };
 
-const HEADER_HEIGHT = 60;
+const HEADER_HEIGHT = 110; // Increased to accommodate filters
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -90,8 +92,10 @@ export default function HomeScreen() {
   const [genreSections, setGenreSections] = useState<GenreSectionType[]>([]);
   const [newThisWeek, setNewThisWeek] = useState<(Movie | TVShow)[]>([]);
   const [leavingSoon, setLeavingSoon] = useState<LeavingSoonItem[]>([]);
+  const [watchlistMovies, setWatchlistMovies] = useState<WatchlistItem[]>([]);
 
   const scrollY = useSharedValue(0);
+  const lastFocusRefreshTime = React.useRef(0);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -169,8 +173,10 @@ export default function HomeScreen() {
           break;
         default:
           console.warn(`Unknown section ID: ${sectionId}`);
+          throw new Error(`Unknown section: ${sectionId}`);
       }
     } catch (error) {
+      console.error(`Error retrying section ${sectionId}:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load content';
       setSectionError(sectionId, errorMessage);
     } finally {
@@ -195,22 +201,27 @@ export default function HomeScreen() {
         upcomingMovies,
       ] = await Promise.all([
         tmdbService.getTrendingMovies().catch(err => {
+          console.error('Error fetching trending movies:', err);
           setSectionError('trending-movies', 'Failed to load trending movies');
           return [];
         }),
         tmdbService.getTrendingTVShows().catch(err => {
+          console.error('Error fetching trending TV shows:', err);
           setSectionError('trending-tv', 'Failed to load trending TV shows');
           return [];
         }),
         tmdbService.getTopRatedMovies().catch(err => {
+          console.error('Error fetching top rated movies:', err);
           setSectionError('top-rated-movies', 'Failed to load top rated movies');
           return [];
         }),
         tmdbService.getTopRatedTVShows().catch(err => {
+          console.error('Error fetching top rated TV shows:', err);
           setSectionError('top-rated-tv', 'Failed to load top rated TV shows');
           return [];
         }),
         tmdbService.getUpcomingMovies().catch(err => {
+          console.error('Error fetching upcoming movies:', err);
           setSectionError('upcoming-movies', 'Failed to load upcoming movies');
           return [];
         }),
@@ -225,6 +236,13 @@ export default function HomeScreen() {
       ]);
     } catch (error) {
       console.error('Error fetching content:', error);
+      // Set error for all sections if Promise.all fails catastrophically
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load content';
+      setSectionError('trending-movies', errorMessage);
+      setSectionError('trending-tv', errorMessage);
+      setSectionError('top-rated-movies', errorMessage);
+      setSectionError('top-rated-tv', errorMessage);
+      setSectionError('upcoming-movies', errorMessage);
     } finally {
       // Clear loading states
       setSectionLoading('trending-movies', false);
@@ -298,9 +316,15 @@ export default function HomeScreen() {
   };
 
   const fetchLeavingSoon = async () => {
+    if (!user) {
+      console.log('No user available for leaving soon content');
+      return;
+    }
+    
     setSectionLoading('leaving-soon', true);
     try {
-      const items = await contentDiscoveryService.getLeavingSoon();
+      const items = await contentDiscoveryService.getLeavingSoon(user.id);
+      console.log('Leaving Soon items fetched:', items.length);
       setLeavingSoon(items);
       clearSectionError('leaving-soon');
     } catch (error) {
@@ -319,12 +343,18 @@ export default function HomeScreen() {
     try {
       const [watchlistData] = await Promise.all([
         storageService.getWatchlist().catch(err => {
+          console.error('Error fetching watchlist:', err);
           setSectionError('watchlist', 'Failed to load watchlist');
           return [];
         }),
       ]);
 
       setWatchlist(watchlistData);
+      
+      // Filter and set watchlist movies (unwatched movies only)
+      const unwatchedMovies = watchlistData.filter(item => item.type === 'movie' && !item.watched);
+      setWatchlistMovies(unwatchedMovies);
+      
       clearSectionError('watchlist');
 
       // Calculate next episodes for watchlist TV shows - OPTIMIZED: Single batch query
@@ -355,10 +385,14 @@ export default function HomeScreen() {
         clearSectionError('stats');
       } catch (error) {
         console.error('Error calculating stats:', error);
-        setSectionError('stats', 'Failed to load stats');
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load stats';
+        setSectionError('stats', errorMessage);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load user data';
+      setSectionError('watchlist', errorMessage);
+      setSectionError('stats', errorMessage);
     } finally {
       // Clear loading states
       setSectionLoading('watchlist', false);
@@ -367,53 +401,91 @@ export default function HomeScreen() {
   };
 
   const loadAllData = async () => {
-    setLoading(true);
-    
-    // Check if user has seen welcome modal
-    const hasSeenWelcome = await onboardingService.hasSeenWelcome();
-    setShowWelcome(!hasSeenWelcome);
-    
-    // PERFORMANCE: Load user data first (faster, from local storage)
-    // Then load personalized sections and TMDB content in background
-    await fetchUserData();
-    setLoading(false);
-    
-    // Load personalized sections (continue watching, recommendations, genres)
-    if (user) {
-      fetchContinueWatching().catch(error => {
-        console.error('Error loading continue watching:', error);
+    try {
+      setLoading(true);
+      
+      // Check if user has seen welcome modal
+      try {
+        const hasSeenWelcome = await onboardingService.hasSeenWelcome();
+        setShowWelcome(!hasSeenWelcome);
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        // Default to not showing welcome modal on error
+        setShowWelcome(false);
+      }
+      
+      // PHASE 1: Load user data first (watchlist, stats, continue watching)
+      // This is fastest as it comes from local storage/database
+      try {
+        await fetchUserData();
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        // Continue loading other sections even if user data fails
+      }
+      
+      // Show UI immediately after user data loads
+      setLoading(false);
+      
+      // PHASE 2: Load personalized sections second (recommendations, genres)
+      // These require processing user's watch history
+      if (user) {
+        // Load continue watching (user-specific, requires database query)
+        fetchContinueWatching().catch(error => {
+          console.error('Error loading continue watching:', error);
+        });
+        
+        // Load personalized recommendations (requires taste profile analysis)
+        fetchBecauseYouWatched().catch(error => {
+          console.error('Error loading because you watched:', error);
+        });
+        
+        // Load genre sections (requires watch history analysis)
+        fetchGenreSections().catch(error => {
+          console.error('Error loading genre sections:', error);
+        });
+      }
+      
+      // PHASE 3: Load TMDB content last (trending, new releases)
+      // These are external API calls and can be slower
+      
+      // Load discovery content (new this week, leaving soon)
+      fetchNewThisWeek().catch(error => {
+        console.error('Error loading new this week:', error);
       });
-      fetchBecauseYouWatched().catch(error => {
-        console.error('Error loading because you watched:', error);
+      
+      fetchLeavingSoon().catch(error => {
+        console.error('Error loading leaving soon:', error);
       });
-      fetchGenreSections().catch(error => {
-        console.error('Error loading genre sections:', error);
+      
+      // Load trending content sections
+      fetchContent().catch(error => {
+        console.error('Error loading content:', error);
       });
+    } catch (error) {
+      console.error('Critical error in loadAllData:', error);
+      // Even on critical error, try to show UI
+      setLoading(false);
+    } finally {
+      setRefreshing(false);
     }
-    
-    // Load discovery content (new this week, leaving soon)
-    fetchNewThisWeek().catch(error => {
-      console.error('Error loading new this week:', error);
-    });
-    fetchLeavingSoon().catch(error => {
-      console.error('Error loading leaving soon:', error);
-    });
-    
-    // Load trending content after UI is shown
-    fetchContent().catch(error => {
-      console.error('Error loading content:', error);
-    });
-    
-    setRefreshing(false);
   };
 
   useEffect(() => {
     loadAllData();
   }, []);
 
+  // Only refresh user data on focus if we've been away for a while (30+ seconds)
+  // This prevents unnecessary refreshes when quickly switching tabs
   useFocusEffect(
     useCallback(() => {
-      fetchUserData();
+      const now = Date.now();
+      const timeSinceLastRefresh = now - lastFocusRefreshTime.current;
+      
+      // Only refresh if it's been more than 30 seconds since last refresh
+      if (timeSinceLastRefresh > 30000) {
+        fetchUserData();
+        lastFocusRefreshTime.current = now;
+      }
     }, [])
   );
 
@@ -532,62 +604,106 @@ export default function HomeScreen() {
       await fetchUserData();
     } catch (error) {
       console.error('Error marking episode watched:', error);
-      Alert.alert("Error", "Failed to mark episode as watched. Please try again.");
-      fetchUserData();
+      const errorMessage = error instanceof Error ? error.message : 'Failed to mark episode as watched';
+      Alert.alert("Error", `${errorMessage}. Please try again.`);
+      // Revert optimistic update by refreshing data
+      fetchUserData().catch(err => {
+        console.error('Error reverting episode update:', err);
+      });
     }
   };
 
   const handleWatchlistPress = async (item: Movie | TVShow, type: 'movie' | 'tv') => {
-    // Optimistic update
-    const isCurrentlyInWatchlist = isInWatchlist(item.id, type);
+    try {
+      // Optimistic update
+      const isCurrentlyInWatchlist = isInWatchlist(item.id, type);
 
-    if (isCurrentlyInWatchlist) {
-      setWatchlist(prev => prev.filter(w => !(w.id === item.id && w.type === type)));
-      storageService.removeFromWatchlist(item.id, type).catch(err => {
-        console.error('Error removing from watchlist:', err);
-        fetchUserData(); // Revert on error
-      });
-    } else {
-      const newItem: WatchlistItem = {
-        id: item.id,
-        type,
-        title: 'title' in item ? item.title : item.name,
-        poster_path: item.poster_path,
-        vote_average: item.vote_average,
-        release_date: 'release_date' in item ? item.release_date : item.first_air_date,
-        added_date: new Date().toISOString(),
-        watched: false
-      };
-      setWatchlist(prev => [...prev, newItem]);
-      storageService.addToWatchlist(newItem).catch(err => {
-        console.error('Error adding to watchlist:', err);
-        fetchUserData(); // Revert on error
-      });
+      if (isCurrentlyInWatchlist) {
+        setWatchlist(prev => prev.filter(w => !(w.id === item.id && w.type === type)));
+        
+        // Also remove from watchlist movies if it's a movie
+        if (type === 'movie') {
+          setWatchlistMovies(prev => prev.filter(w => w.id !== item.id));
+        }
+        
+        try {
+          await storageService.removeFromWatchlist(item.id, type);
+        } catch (err) {
+          console.error('Error removing from watchlist:', err);
+          // Revert on error
+          await fetchUserData().catch(fetchErr => {
+            console.error('Error reverting watchlist removal:', fetchErr);
+          });
+          throw err;
+        }
+      } else {
+        const newItem: WatchlistItem = {
+          id: item.id,
+          type,
+          title: 'title' in item ? item.title : item.name,
+          poster_path: item.poster_path,
+          vote_average: item.vote_average,
+          release_date: 'release_date' in item ? item.release_date : item.first_air_date,
+          added_date: new Date().toISOString(),
+          watched: false
+        };
+        setWatchlist(prev => [...prev, newItem]);
+        
+        // Also add to watchlist movies if it's a movie
+        if (type === 'movie') {
+          setWatchlistMovies(prev => [...prev, newItem]);
+        }
+        
+        try {
+          await storageService.addToWatchlist(newItem);
+        } catch (err) {
+          console.error('Error adding to watchlist:', err);
+          // Revert on error
+          await fetchUserData().catch(fetchErr => {
+            console.error('Error reverting watchlist addition:', fetchErr);
+          });
+          throw err;
+        }
+      }
+    } catch (error) {
+      console.error('Error updating watchlist:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update watchlist';
+      Alert.alert('Error', errorMessage);
     }
   };
 
   const handleMovieActionPress = async (item: Movie) => {
-    // Optimistic update: Mark as watched locally
-    setWatchlist(prev => prev.map(w =>
-      w.id === item.id && w.type === 'movie' ? { ...w, watched: true } : w
-    ));
+    try {
+      // Optimistic update: Mark as watched locally
+      setWatchlist(prev => prev.map(w =>
+        w.id === item.id && w.type === 'movie' ? { ...w, watched: true } : w
+      ));
+      
+      // Remove from watchlist movies (since it's now watched)
+      setWatchlistMovies(prev => prev.filter(w => w.id !== item.id));
 
-    // Mark as watched in background
-    storageService.markAsWatched({
-      id: item.id,
-      type: 'movie',
-      title: item.title,
-      poster_path: item.poster_path,
-      vote_average: item.vote_average,
-      release_date: item.release_date,
-      watched: true,
-    }).then(() => {
+      // Mark as watched in background
+      await storageService.markAsWatched({
+        id: item.id,
+        type: 'movie',
+        title: item.title,
+        poster_path: item.poster_path,
+        vote_average: item.vote_average,
+        release_date: item.release_date,
+        watched: true,
+      });
+      
       // Refresh user data silently to ensure consistency
-      fetchUserData();
-    }).catch(err => {
-      console.error('Error marking movie as watched:', err);
-      fetchUserData(); // Revert on error
-    });
+      await fetchUserData();
+    } catch (error) {
+      console.error('Error marking movie as watched:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to mark movie as watched';
+      Alert.alert('Error', errorMessage);
+      // Revert on error
+      await fetchUserData().catch(err => {
+        console.error('Error reverting movie watched status:', err);
+      });
+    }
   };
 
   // Welcome modal handlers
@@ -597,7 +713,11 @@ export default function HomeScreen() {
       setShowWelcome(false);
     } catch (error) {
       console.error('Error dismissing welcome modal:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save welcome dismissal';
+      // Still dismiss the modal even if saving fails
       setShowWelcome(false);
+      // Log but don't show alert as this is not critical
+      console.warn('Welcome dismissal not saved:', errorMessage);
     }
   };
 
@@ -607,19 +727,32 @@ export default function HomeScreen() {
 
   // Continue watching handlers
   const handleContinueWatchingItemPress = (item: ContinueWatchingItem) => {
-    if (item.type === 'tv' && item.nextEpisode) {
-      router.push(`/episode/${item.id}/${item.nextEpisode.season}/${item.nextEpisode.episode}`);
-    } else {
-      router.push(`/details/${item.type}/${item.id}`);
+    try {
+      if (item.type === 'tv' && item.nextEpisode) {
+        router.push(`/episode/${item.id}/${item.nextEpisode.season}/${item.nextEpisode.episode}`);
+      } else {
+        router.push(`/details/${item.type}/${item.id}`);
+      }
+    } catch (error) {
+      console.error('Error navigating to continue watching item:', error);
+      Alert.alert('Error', 'Failed to open content. Please try again.');
     }
   };
 
   const handleContinueWatchingRemove = async (id: number, type: 'movie' | 'tv') => {
-    // Remove from continue watching list optimistically
-    setContinueWatching(prev => prev.filter(item => !(item.id === id && item.type === type)));
-    
-    // Note: Actual removal would require marking as completed or dropped in progress service
-    // For now, just update the UI
+    try {
+      // Remove from continue watching list optimistically
+      setContinueWatching(prev => prev.filter(item => !(item.id === id && item.type === type)));
+      
+      // Note: Actual removal would require marking as completed or dropped in progress service
+      // For now, just update the UI
+    } catch (error) {
+      console.error('Error removing from continue watching:', error);
+      // Revert by refetching
+      await fetchContinueWatching().catch(err => {
+        console.error('Error reverting continue watching removal:', err);
+      });
+    }
   };
 
   if (loading && !refreshing) {
@@ -668,44 +801,31 @@ export default function HomeScreen() {
           streak={stats.streak}
         />
 
-        {/* Quick Filters - Below ImpactHeader */}
-        <QuickFilters
-          activeFilter={activeFilter}
-          onFilterChange={handleFilterChange}
-        />
-
         {/* Continue Watching Section - Before watchlist */}
-        <ContinueWatchingSection
-          items={continueWatching}
-          onItemPress={handleContinueWatchingItemPress}
-          onRemove={handleContinueWatchingRemove}
-          loading={sectionLoadingStates['continue-watching']}
-          error={sectionErrors['continue-watching']}
-          onRetry={() => retrySectionLoad('continue-watching')}
-        />
-
-        {/* Your Watchlist - UNCHANGED position */}
-        {watchlist.length > 0 && (
-          <MediaSection
-            title="Your Watchlist"
-            data={watchlist}
-            type="movie" // Placeholder, handled by MediaCard
-            onItemPress={(item) => {
-              const watchlistItem = item as unknown as WatchlistItem;
-              handleItemPress(item, watchlistItem.type);
-            }}
-            onWatchlistPress={(item) => {
-              const watchlistItem = item as unknown as WatchlistItem;
-              handleWatchlistPress(item, watchlistItem.type);
-            }}
-            isInWatchlist={(id) => isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv')}
-            nextEpisodes={nextEpisodes}
-            onNextEpisodePress={handleNextEpisodePress}
-            onMovieActionPress={handleMovieActionPress}
-            filterType="all"
+        {sectionLoadingStates['continue-watching'] && continueWatching.length === 0 ? (
+          <SkeletonLoader type="section" />
+        ) : (
+          <ContinueWatchingSection
+            items={continueWatching}
+            onItemPress={handleContinueWatchingItemPress}
+            onRemove={handleContinueWatchingRemove}
+            loading={sectionLoadingStates['continue-watching']}
+            error={sectionErrors['continue-watching']}
+            onRetry={() => retrySectionLoad('continue-watching')}
             activeFilter={activeFilter}
           />
         )}
+
+        {/* Movies From Your Watchlist - NEW SECTION */}
+        <WatchlistMoviesSection
+          movies={watchlistMovies}
+          onItemPress={(item) => handleItemPress(item as any, 'movie')}
+          onWatchlistPress={(item) => handleWatchlistPress(item as any, 'movie')}
+          onMovieActionPress={(item) => handleMovieActionPress(item as any)}
+          loading={sectionLoadingStates['watchlist']}
+          error={sectionErrors['watchlist']}
+          onRetry={() => retrySectionLoad('watchlist')}
+        />
 
         {/* Surprise Me Button - Before recommendations widget */}
         <SurpriseButton
@@ -723,82 +843,153 @@ export default function HomeScreen() {
         />
 
         {/* Because You Watched Sections - After StartWatchingWidget */}
-        {becauseYouWatched.map((section) => (
-          <BecauseYouWatchedSection
-            key={`because-you-watched-${section.sourceId}`}
-            sourceTitle={section.sourceTitle}
-            items={section.items}
-            type={section.sourceType}
-            onItemPress={handleItemPress}
-            onWatchlistPress={handleWatchlistPress}
-            isInWatchlist={(id) => isInWatchlist(id, section.sourceType)}
-            loading={sectionLoadingStates['because-you-watched']}
-            error={sectionErrors['because-you-watched']}
-            onRetry={() => retrySectionLoad('because-you-watched')}
-          />
-        ))}
+        {sectionLoadingStates['because-you-watched'] && becauseYouWatched.length === 0 ? (
+          <>
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+          </>
+        ) : (
+          becauseYouWatched.map((section) => (
+            <BecauseYouWatchedSection
+              key={`because-you-watched-${section.sourceId}`}
+              sourceTitle={section.sourceTitle}
+              items={section.items}
+              type={section.sourceType}
+              onItemPress={handleItemPress}
+              onWatchlistPress={handleWatchlistPress}
+              isInWatchlist={(id) => isInWatchlist(id, section.sourceType)}
+              loading={sectionLoadingStates['because-you-watched']}
+              error={sectionErrors['because-you-watched']}
+              onRetry={() => retrySectionLoad('because-you-watched')}
+              activeFilter={activeFilter}
+            />
+          ))
+        )}
 
         {/* Genre Sections - After personalized recommendations */}
-        {genreSections.map((section) => (
-          <GenreSection
-            key={`genre-${section.genreId}`}
-            genreName={section.genreName}
-            items={section.items}
-            type={section.type}
-            onItemPress={handleItemPress}
-            onWatchlistPress={handleWatchlistPress}
-            isInWatchlist={(id) => isInWatchlist(id, section.type)}
-            loading={sectionLoadingStates['genre-sections']}
-            error={sectionErrors['genre-sections']}
-            onRetry={() => retrySectionLoad('genre-sections')}
-          />
-        ))}
+        {sectionLoadingStates['genre-sections'] && genreSections.length === 0 ? (
+          <>
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+          </>
+        ) : (
+          genreSections.map((section) => (
+            <GenreSection
+              key={`genre-${section.genreId}`}
+              genreName={section.genreName}
+              items={section.items}
+              type={section.type}
+              onItemPress={handleItemPress}
+              onWatchlistPress={handleWatchlistPress}
+              isInWatchlist={(id) => isInWatchlist(id, section.type)}
+              loading={sectionLoadingStates['genre-sections']}
+              error={sectionErrors['genre-sections']}
+              onRetry={() => retrySectionLoad('genre-sections')}
+              activeFilter={activeFilter}
+            />
+          ))
+        )}
 
         {/* New This Week Section - After genre sections */}
-        <NewThisWeekSection
-          items={newThisWeek}
-          onItemPress={handleItemPress}
-          onWatchlistPress={handleWatchlistPress}
-          isInWatchlist={(id) => {
-            // Check both movie and tv watchlists
-            return isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv');
-          }}
-          loading={sectionLoadingStates['new-this-week']}
-          error={sectionErrors['new-this-week']}
-          onRetry={() => retrySectionLoad('new-this-week')}
-        />
+        {sectionLoadingStates['new-this-week'] && newThisWeek.length === 0 ? (
+          <SkeletonLoader type="section" />
+        ) : (
+          <NewThisWeekSection
+            items={newThisWeek}
+            onItemPress={handleItemPress}
+            onWatchlistPress={handleWatchlistPress}
+            isInWatchlist={(id) => {
+              // Check both movie and tv watchlists
+              return isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv');
+            }}
+            loading={sectionLoadingStates['new-this-week']}
+            error={sectionErrors['new-this-week']}
+            onRetry={() => retrySectionLoad('new-this-week')}
+            activeFilter={activeFilter}
+          />
+        )}
 
         {/* Leaving Soon Section - After new content */}
-        <LeavingSoonSection
-          items={leavingSoon}
-          onItemPress={(item) => handleItemPress(item as any, item.type)}
-          onWatchlistPress={(item) => handleWatchlistPress(item as any, item.type)}
-          isInWatchlist={(id) => {
-            // Check both movie and tv watchlists
-            return isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv');
+        {sectionLoadingStates['leaving-soon'] && leavingSoon.length === 0 ? (
+          <SkeletonLoader type="section" />
+        ) : (
+          <LeavingSoonSection
+            items={leavingSoon}
+            onItemPress={(item) => handleItemPress(item as any, item.type)}
+            onWatchlistPress={(item) => handleWatchlistPress(item as any, item.type)}
+            isInWatchlist={(id) => {
+              // Check both movie and tv watchlists
+              return isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv');
+            }}
+            loading={sectionLoadingStates['leaving-soon']}
+            error={sectionErrors['leaving-soon']}
+            onRetry={() => retrySectionLoad('leaving-soon')}
+            activeFilter={activeFilter}
+          />
+        )}
+
+        {/* Your Watchlist - MOVED to bottom of personalized content */}
+        <MediaSection
+          title="Your Watchlist"
+          data={watchlist}
+          type="movie" // Placeholder, handled by MediaCard
+          onItemPress={(item) => {
+            const watchlistItem = item as unknown as WatchlistItem;
+            handleItemPress(item, watchlistItem.type);
           }}
-          loading={sectionLoadingStates['leaving-soon']}
-          error={sectionErrors['leaving-soon']}
-          onRetry={() => retrySectionLoad('leaving-soon')}
+          onWatchlistPress={(item) => {
+            const watchlistItem = item as unknown as WatchlistItem;
+            handleWatchlistPress(item, watchlistItem.type);
+          }}
+          isInWatchlist={(id) => isInWatchlist(id, 'movie') || isInWatchlist(id, 'tv')}
+          nextEpisodes={nextEpisodes}
+          onNextEpisodePress={handleNextEpisodePress}
+          onMovieActionPress={handleMovieActionPress}
+          filterType="all"
+          activeFilter={activeFilter}
+          loading={sectionLoadingStates['watchlist']}
+          error={sectionErrors['watchlist']}
+          onRetry={() => retrySectionLoad('watchlist')}
+          emptyMessage="Your watchlist is empty. Start adding movies and TV shows to watch!"
+          emptyActionLabel="Browse Content"
+          onEmptyAction={() => router.push('/(tabs)/search')}
         />
 
         {/* Existing Media Sections - Updated with new props */}
-        {sections.map((section) => (
-          <MediaSection
-            key={section.title}
-            title={section.title}
-            data={section.data}
-            type={section.type}
-            onItemPress={(item) => handleItemPress(item, section.type)}
-            onWatchlistPress={(item) => handleWatchlistPress(item, section.type)}
-            isInWatchlist={(id) => isInWatchlist(id, section.type)}
-            filterType={section.type}
-            activeFilter={activeFilter}
-            loading={sectionLoadingStates[section.title.toLowerCase().replace(/\s+/g, '-')]}
-            error={sectionErrors[section.title.toLowerCase().replace(/\s+/g, '-')]}
-            onRetry={() => retrySectionLoad(section.title.toLowerCase().replace(/\s+/g, '-'))}
-          />
-        ))}
+        {sections.length === 0 && (
+          sectionLoadingStates['trending-movies'] ||
+          sectionLoadingStates['trending-tv'] ||
+          sectionLoadingStates['top-rated-movies'] ||
+          sectionLoadingStates['top-rated-tv'] ||
+          sectionLoadingStates['upcoming-movies']
+        ) ? (
+          <>
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+            <SkeletonLoader type="section" />
+          </>
+        ) : (
+          sections.map((section) => (
+            <MediaSection
+              key={section.title}
+              title={section.title}
+              data={section.data}
+              type={section.type}
+              onItemPress={(item) => handleItemPress(item, section.type)}
+              onWatchlistPress={(item) => handleWatchlistPress(item, section.type)}
+              isInWatchlist={(id) => isInWatchlist(id, section.type)}
+              filterType={section.type}
+              activeFilter={activeFilter}
+              loading={sectionLoadingStates[section.title.toLowerCase().replace(/\s+/g, '-')]}
+              error={sectionErrors[section.title.toLowerCase().replace(/\s+/g, '-')]}
+              onRetry={() => retrySectionLoad(section.title.toLowerCase().replace(/\s+/g, '-'))}
+              emptyMessage={`No ${section.type === 'movie' ? 'movies' : 'TV shows'} available at the moment.`}
+            />
+          ))
+        )}
 
       </Animated.ScrollView>
 
@@ -818,28 +1009,38 @@ export default function HomeScreen() {
         </Animated.View>
 
         <View style={styles.headerContent}>
-          <View style={styles.brandContainer}>
-            <Image
-              source={require('@/assets/images/streamscribe_round.png')}
-              style={styles.appIcon}
-              resizeMode="contain"
-            />
-            <Image
-              source={require('@/assets/images/logo-text-white.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+          <View style={styles.topRow}>
+            <View style={styles.brandContainer}>
+              <Image
+                source={require('@/assets/images/streamscribe_round.png')}
+                style={styles.appIcon}
+                resizeMode="contain"
+              />
+              <Image
+                source={require('@/assets/images/logo-text-white.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push('/notifications')}
+            >
+              <Ionicons name="notifications" size={24} color={Colors.text} />
+              <View style={styles.badgeContainer}>
+                <NotificationBadge count={unreadNotifications} size="small" />
+              </View>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => router.push('/notifications')}
-          >
-            <Ionicons name="notifications" size={24} color={Colors.text} />
-            <View style={styles.badgeContainer}>
-              <NotificationBadge count={unreadNotifications} size="small" />
-            </View>
-          </TouchableOpacity>
+          {/* Quick Filters inside header */}
+          <View style={styles.filtersRow}>
+            <QuickFilters
+              activeFilter={activeFilter}
+              onFilterChange={handleFilterChange}
+            />
+          </View>
         </View>
       </Animated.View>
     </View>
@@ -870,15 +1071,24 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 20,
+  },
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    height: 60,
   },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  filtersRow: {
+    paddingBottom: 8,
+    marginLeft: -20, // Align with logo icon (compensate for filter chip padding)
   },
   appIcon: {
     width: 36,

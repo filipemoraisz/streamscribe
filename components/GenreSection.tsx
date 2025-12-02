@@ -16,6 +16,7 @@ interface GenreSectionProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  activeFilter?: 'all' | 'movie' | 'tv';
 }
 
 /**
@@ -39,7 +40,12 @@ export const GenreSection: React.FC<GenreSectionProps> = ({
   loading = false,
   error = null,
   onRetry,
+  activeFilter = 'all',
 }) => {
+  // Hide section if filter doesn't match
+  if (activeFilter !== 'all' && activeFilter !== type) {
+    return null;
+  }
   const renderItem = ({ item }: { item: Movie | TVShow }) => {
     return (
       <MediaCard

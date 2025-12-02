@@ -22,6 +22,8 @@ interface MediaSectionProps {
   error?: string | null;
   onRetry?: () => void;
   emptyMessage?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
   filterType?: 'all' | 'movie' | 'tv';
   activeFilter?: 'all' | 'movie' | 'tv';
 }
@@ -40,6 +42,8 @@ export const MediaSection: React.FC<MediaSectionProps> = ({
   error = null,
   onRetry,
   emptyMessage,
+  emptyActionLabel,
+  onEmptyAction,
   filterType = 'all',
   activeFilter = 'all',
 }) => {
@@ -117,6 +121,8 @@ export const MediaSection: React.FC<MediaSectionProps> = ({
           title="No Content"
           message={emptyMessage}
           icon="film-outline"
+          actionLabel={emptyActionLabel}
+          onAction={onEmptyAction}
         />
       </View>
     );

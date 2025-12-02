@@ -366,7 +366,10 @@ export default function ProfileScreen() {
         </Animated.View>
 
         <View style={styles.headerContent}>
-          <Logo />
+          <View style={styles.brandContainer}>
+            <Logo />
+            <Text style={styles.headerTitle}>My Profile</Text>
+          </View>
           <TouchableOpacity onPress={() => router.push('/settings')}>
             <SymbolView name="gearshape" size={24} tintColor={iconColor} />
           </TouchableOpacity>
@@ -397,6 +400,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: Colors.text,
   },
 
   achievementShowcase: {

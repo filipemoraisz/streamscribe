@@ -14,6 +14,7 @@ interface LeavingSoonSectionProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  activeFilter?: 'all' | 'movie' | 'tv';
 }
 
 /**
@@ -36,7 +37,12 @@ export const LeavingSoonSection: React.FC<LeavingSoonSectionProps> = ({
   loading = false,
   error = null,
   onRetry,
+  activeFilter = 'all',
 }) => {
+  // Filter items based on active filter
+  const filteredItems = activeFilter === 'all' 
+    ? items 
+    : items.filter(item => item.type === activeFilter);
   /**
    * Format departure date for display (e.g., "Dec 15, 2025")
    */
@@ -139,7 +145,7 @@ export const LeavingSoonSection: React.FC<LeavingSoonSectionProps> = ({
   }
 
   // Requirement 10.5: Hide section when no content leaving soon
-  if (items.length === 0) {
+  if (filteredItems.length === 0) {
     return null;
   }
 
@@ -151,7 +157,7 @@ export const LeavingSoonSection: React.FC<LeavingSoonSectionProps> = ({
         <Text style={styles.subtitle}>Watch before they're gone!</Text>
       </View>
       <FlatList
-        data={items}
+        data={filteredItems}
         renderItem={renderItem}
         keyExtractor={(item) => `${item.type}-${item.id}`}
         horizontal

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { ActivityIndicator, Dimensions, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,9 +34,10 @@ export default function WatchlistScreen() {
   const { user } = useAuth();
   const realTimeStatus = useRealTimeStatus();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [showProgress, setShowProgress] = useState<Map<number, ShowProgress>>(new Map());
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [filter, setFilter] = useState<FilterType>((params.filter as FilterType) || 'all');
   
   const scrollY = useSharedValue(0);
 
@@ -79,6 +80,15 @@ export default function WatchlistScreen() {
       router.replace('/(auth)/login');
     }
   }, [user]);
+
+  // Update filter when navigation params change - always override current filter
+  useFocusEffect(
+    React.useCallback(() => {
+      if (params.filter) {
+        setFilter(params.filter as FilterType);
+      }
+    }, [params.filter])
+  );
 
   useFocusEffect(
     React.useCallback(() => {
@@ -388,7 +398,10 @@ export default function WatchlistScreen() {
           numColumns={numColumns}
           contentContainerStyle={[
             styles.listContainer,
-            { paddingTop: HEADER_HEIGHT + insets.top + 16 }
+            { 
+              paddingTop: HEADER_HEIGHT + insets.top + 16,
+              paddingBottom: insets.bottom + 100 // Add extra padding for tab bar
+            }
           ]}
           columnWrapperStyle={[styles.row, { gap: GAP }]}
           refreshControl={

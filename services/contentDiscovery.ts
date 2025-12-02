@@ -153,9 +153,10 @@ class ContentDiscoveryService {
    * - 10.2: Show departure date for each item
    * - 10.3: Sort by earliest departure date (soonest first)
    * 
+   * @param userId - Optional user ID. If not provided, will attempt to get from Supabase auth
    * @returns Array of LeavingSoonItem sorted by departure date
    */
-  async getLeavingSoon(): Promise<LeavingSoonItem[]> {
+  async getLeavingSoon(userId?: string): Promise<LeavingSoonItem[]> {
     const CACHE_KEY = 'leaving_soon';
     
     // Check cache first
@@ -165,8 +166,15 @@ class ContentDiscoveryService {
     }
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user - either from parameter or from Supabase auth
+      let user;
+      if (userId) {
+        user = { id: userId };
+      } else {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        user = authUser;
+      }
+      
       if (!user) {
         console.warn('No authenticated user for leaving soon content');
         return [];
@@ -180,9 +188,12 @@ class ContentDiscoveryService {
         .single();
 
       if (prefsError || !preferences?.subscribed_services?.length) {
-        console.warn('No subscribed services found for user');
+        console.warn('No subscribed services found for user', prefsError);
+        console.log('User preferences:', preferences);
         return [];
       }
+      
+      console.log('User subscribed services:', preferences.subscribed_services);
 
       // Calculate date range (next 30 days)
       const today = new Date();
@@ -205,7 +216,10 @@ class ContentDiscoveryService {
         return [];
       }
 
+      console.log('Streaming availability changes found:', changes?.length || 0);
+
       if (!changes || changes.length === 0) {
+        console.log('No content leaving soon in the next 30 days');
         return [];
       }
 

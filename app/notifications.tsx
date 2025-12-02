@@ -76,51 +76,21 @@ export default function NotificationsScreen() {
     }, [loadNotifications])
   );
 
-  // Mark notification as read and handle navigation
-  const handleNotificationTap = async (notification: NotificationItem) => {
-    try {
-      // Mark as read if not already read
-      if (!notification.read) {
-        await notificationHistoryService.markAsRead(notification.id);
-        setNotifications(prev =>
-          prev.map(notif =>
-            notif.id === notification.id ? { ...notif, read: true } : notif
-          )
-        );
-      }
-
-      // Navigate based on notification type and data
-      if (notification.data?.deepLink) {
-        const { screen, params } = notification.data.deepLink;
-        if (screen === 'EpisodeDetails' && params.showId) {
-          router.push(`/details/tv/${params.showId}`);
-        } else if (screen === 'ShowDetails' && params.showId) {
-          router.push(`/details/tv/${params.showId}`);
-        }
-      } else {
-        // Default navigation based on type
-        switch (notification.type) {
-          case 'episode_release':
-            if (notification.data?.showId) {
-              router.push(`/details/tv/${notification.data.showId}`);
-            }
-            break;
-          case 'streaming_availability':
-            if (notification.data?.showId) {
-              router.push(`/details/tv/${notification.data.showId}`);
-            } else if (notification.data?.movieId) {
-              router.push(`/details/movie/${notification.data.movieId}`);
-            }
-            break;
-          case 'recommendation':
-            router.push('/(tabs)');
-            break;
-          default:
-            router.push('/(tabs)');
-        }
-      }
-    } catch (error) {
-      console.error('Error handling notification tap:', error);
+  // Get notification color based on type
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'episode_release':
+        return '#FF6600'; // Primary orange
+      case 'streaming_availability':
+        return '#FF8833'; // Light orange
+      case 'recommendation':
+        return '#C4460C'; // Secondary orange
+      case 'progress_sync':
+        return '#FF9944'; // Warm orange
+      case 'achievement_unlock':
+        return '#990000'; // Accent red-orange
+      default:
+        return Colors.primary;
     }
   };
 
@@ -158,41 +128,52 @@ export default function NotificationsScreen() {
     }
   };
 
-  // Render notification item
-  const renderNotificationItem = ({ item }: { item: NotificationItem }) => (
-    <TouchableOpacity
-      style={[styles.notificationItem, !item.read && styles.unreadItem]}
-      onPress={() => handleNotificationTap(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.notificationContent}>
-        <View style={styles.iconContainer}>
-          <Ionicons
-            name={getNotificationIcon(item.type) as any}
-            size={24}
-            color={!item.read ? Colors.primary : Colors.textMuted}
-          />
-        </View>
-
-        <View style={styles.textContainer}>
-          <View style={styles.notificationHeader}>
-            <Text style={[styles.notificationTitle, !item.read && styles.unreadText]} numberOfLines={2}>
-              {item.title}
-            </Text>
-            <Text style={styles.timestamp}>
-              {formatTimestamp(item.timestamp)}
-            </Text>
+  // Render notification item (non-clickable, display only)
+  const renderNotificationItem = ({ item }: { item: NotificationItem }) => {
+    const notificationColor = getNotificationColor(item.type);
+    
+    return (
+      <View style={[
+        styles.notificationItem, 
+        !item.read && styles.unreadItem,
+        { borderLeftColor: notificationColor, borderLeftWidth: 4 }
+      ]}>
+        <View style={styles.notificationContent}>
+          <View style={[styles.iconContainer, { backgroundColor: notificationColor }]}>
+            <Ionicons
+              name={getNotificationIcon(item.type) as any}
+              size={26}
+              color="#FFFFFF"
+            />
           </View>
 
-          <Text style={styles.notificationBody} numberOfLines={3}>
-            {item.body}
-          </Text>
-        </View>
+          <View style={styles.textContainer}>
+            <View style={styles.notificationHeader}>
+              <Text style={[styles.notificationTitle, !item.read && styles.unreadText]} numberOfLines={2}>
+                {item.title}
+              </Text>
+              {!item.read && <View style={[styles.unreadDot, { backgroundColor: notificationColor }]} />}
+            </View>
 
-        {!item.read && <View style={styles.unreadDot} />}
+            <Text style={styles.notificationBody} numberOfLines={3}>
+              {item.body}
+            </Text>
+
+            <View style={styles.notificationFooter}>
+              <View style={[styles.typeTag, { backgroundColor: notificationColor + '15', borderColor: notificationColor + '40' }]}>
+                <Text style={[styles.typeTagText, { color: notificationColor }]}>
+                  {item.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </Text>
+              </View>
+              <Text style={styles.timestamp}>
+                {formatTimestamp(item.timestamp)}
+              </Text>
+            </View>
+          </View>
+        </View>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   if (isLoading) {
     return (
@@ -292,27 +273,43 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   notificationItem: {
-    backgroundColor: Colors.background,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    backgroundColor: Colors.card,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   unreadItem: {
     backgroundColor: Colors.surface,
+    shadowOpacity: 0.15,
+    elevation: 4,
+  },
+  colorAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
   },
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingLeft: 20,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.card,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   textContainer: {
     flex: 1,
@@ -322,7 +319,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   notificationTitle: {
     fontSize: 16,
@@ -336,21 +333,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   timestamp: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textMuted,
     fontWeight: '500',
   },
   notificationBody: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 20,
-    marginTop: 2,
+    marginBottom: 8,
+  },
+  notificationFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  typeTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  typeTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
   unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.primary,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginTop: 8,
     marginLeft: 8,
   },
@@ -359,9 +373,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
+    paddingTop: 60,
   },
   emptyListContainer: {
     flexGrow: 1,
+    paddingTop: 20,
   },
   emptyText: {
     fontSize: 20,

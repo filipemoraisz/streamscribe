@@ -19,15 +19,12 @@ interface SurpriseButtonProps {
 }
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-const AnimatedIcon = Animated.createAnimatedComponent(Ionicons);
 
 export const SurpriseButton: React.FC<SurpriseButtonProps> = ({
   onPress,
   loading = false,
 }) => {
   const scale = useSharedValue(1);
-  const iconRotation = useSharedValue(0);
-  const iconScale = useSharedValue(1);
 
   const handlePress = async () => {
     // Trigger haptic feedback
@@ -54,40 +51,9 @@ export const SurpriseButton: React.FC<SurpriseButtonProps> = ({
     };
   });
 
-  // Animated styles for the icon
-  const animatedIconStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { rotate: `${iconRotation.value}deg` },
-        { scale: iconScale.value },
-      ],
-    };
-  });
 
-  // Icon animation - continuous rotation and pulse when not loading
-  React.useEffect(() => {
-    if (!loading) {
-      // Continuous rotation
-      iconRotation.value = withRepeat(
-        withTiming(360, { duration: 3000 }),
-        -1, // Infinite
-        false
-      );
 
-      // Gentle pulse
-      iconScale.value = withRepeat(
-        withSequence(
-          withTiming(1.1, { duration: 1000 }),
-          withTiming(1, { duration: 1000 })
-        ),
-        -1, // Infinite
-        false
-      );
-    } else {
-      iconRotation.value = withTiming(0, { duration: 200 });
-      iconScale.value = withTiming(1, { duration: 200 });
-    }
-  }, [loading]);
+  // No continuous animation - icon stays static
 
   return (
     <AnimatedTouchableOpacity
@@ -97,13 +63,13 @@ export const SurpriseButton: React.FC<SurpriseButtonProps> = ({
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={Colors.text} style={styles.icon} />
+        <ActivityIndicator size="small" color="#FF6B35" style={styles.icon} />
       ) : (
-        <AnimatedIcon
+        <Ionicons
           name="shuffle"
           size={24}
-          color={Colors.text}
-          style={[styles.icon, animatedIconStyle]}
+          color="#FF6B35"
+          style={styles.icon}
         />
       )}
       <Text style={styles.buttonText}>
@@ -118,29 +84,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: '#000000',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm + 2,
     borderRadius: BorderRadius.pill,
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,
-    ...Shadows.elevated,
-    // Bold light effect
-    shadowColor: Colors.primary,
+    // Glowing orange edges
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+    shadowColor: '#FF6B35',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 0,
     },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 10,
   },
   icon: {
     marginRight: Spacing.xs,
   },
   buttonText: {
-    color: Colors.text,
+    color: '#FF6B35',
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.5,

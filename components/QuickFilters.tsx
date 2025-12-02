@@ -74,14 +74,7 @@ const FilterChip: React.FC<FilterChipProps> = ({ filter, isActive, onPress }) =>
         isActive ? Colors.primary : Colors.border,
         { duration: AnimationTiming.normal }
       ),
-      transform: [
-        {
-          scale: withSpring(isActive ? 1.05 : 1, {
-            damping: 15,
-            stiffness: 150,
-          }),
-        },
-      ],
+      // Removed scale transform to keep consistent sizing
     };
   });
 

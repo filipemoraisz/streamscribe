@@ -278,8 +278,10 @@ class ProgressService {
             const data = await AsyncStorage.getItem(key);
             const allProgress: EpisodeProgress[] = data ? JSON.parse(data) : [];
 
-            const { data: { user } } = await supabase.auth.getUser();
-            const userId = user?.id || 'guest';
+            // Try to get user from session first (more reliable)
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id || 'guest';
+            console.log('[Progress] Session check - session exists:', !!session, 'user.id:', session?.user?.id, 'final userId:', userId);
 
             const newEntry: EpisodeProgress = {
                 id: `${userId}-${showId}-${seasonNumber}-${episodeNumber}`,

@@ -14,6 +14,7 @@ interface ContinueWatchingSectionProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  activeFilter?: 'all' | 'movie' | 'tv';
 }
 
 export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = ({
@@ -23,7 +24,12 @@ export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = (
   loading = false,
   error = null,
   onRetry,
+  activeFilter = 'all',
 }) => {
+  // Filter items based on active filter
+  const filteredItems = activeFilter === 'all' 
+    ? items 
+    : items.filter(item => item.type === activeFilter);
   const renderItem = ({ item }: { item: ContinueWatchingItem }) => {
     const posterUrl = tmdbService.getImageURL(item.poster_path, 'w500');
     const title = item.title;
@@ -109,7 +115,7 @@ export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = (
   }
 
   // Don't render if no items (hide section when empty)
-  if (items.length === 0) {
+  if (filteredItems.length === 0) {
     return null;
   }
 
@@ -118,7 +124,7 @@ export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Continue Watching</Text>
       <FlatList
-        data={items}
+        data={filteredItems}
         renderItem={renderItem}
         keyExtractor={(item) => `${item.type}-${item.id}`}
         horizontal

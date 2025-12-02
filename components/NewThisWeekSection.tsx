@@ -14,6 +14,7 @@ interface NewThisWeekSectionProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  activeFilter?: 'all' | 'movie' | 'tv';
 }
 
 /**
@@ -36,7 +37,16 @@ export const NewThisWeekSection: React.FC<NewThisWeekSectionProps> = ({
   loading = false,
   error = null,
   onRetry,
+  activeFilter = 'all',
 }) => {
+  // Filter items based on active filter
+  const filteredItems = activeFilter === 'all' 
+    ? items 
+    : items.filter(item => {
+        // Check if item is a movie or TV show
+        const itemType = 'title' in item ? 'movie' : 'tv';
+        return itemType === activeFilter;
+      });
   /**
    * Determine the type of content (movie or tv) based on properties
    */
@@ -122,7 +132,7 @@ export const NewThisWeekSection: React.FC<NewThisWeekSectionProps> = ({
   }
 
   // Requirement 9.5: Hide section when no new content available
-  if (items.length === 0) {
+  if (filteredItems.length === 0) {
     return null;
   }
 
@@ -131,7 +141,7 @@ export const NewThisWeekSection: React.FC<NewThisWeekSectionProps> = ({
     <View style={styles.container}>
       <Text style={styles.title}>New This Week</Text>
       <FlatList
-        data={items}
+        data={filteredItems}
         renderItem={renderItem}
         keyExtractor={(item) => `${getItemType(item)}-${item.id}`}
         horizontal

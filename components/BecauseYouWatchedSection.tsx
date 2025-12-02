@@ -16,6 +16,7 @@ interface BecauseYouWatchedSectionProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  activeFilter?: 'all' | 'movie' | 'tv';
 }
 
 /**
@@ -39,7 +40,12 @@ export const BecauseYouWatchedSection: React.FC<BecauseYouWatchedSectionProps> =
   loading = false,
   error = null,
   onRetry,
+  activeFilter = 'all',
 }) => {
+  // Hide section if filter doesn't match
+  if (activeFilter !== 'all' && activeFilter !== type) {
+    return null;
+  }
   const sectionTitle = `Because You Watched ${sourceTitle}`;
 
   const renderItem = ({ item }: { item: Movie | TVShow }) => {
