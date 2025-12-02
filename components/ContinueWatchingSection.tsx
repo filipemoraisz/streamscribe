@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { tmdbService } from '../services/tmdb';
@@ -17,7 +17,7 @@ interface ContinueWatchingSectionProps {
   activeFilter?: 'all' | 'movie' | 'tv';
 }
 
-export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = ({
+export const ContinueWatchingSection = React.memo<ContinueWatchingSectionProps>(({
   items,
   onItemPress,
   onRemove,
@@ -26,13 +26,27 @@ export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = (
   onRetry,
   activeFilter = 'all',
 }) => {
-  // Filter items based on active filter
-  const filteredItems = activeFilter === 'all' 
-    ? items 
-    : items.filter(item => item.type === activeFilter);
-  const renderItem = ({ item }: { item: ContinueWatchingItem }) => {
+  // Memoize filtered items to prevent unnecessary recalculations
+  const filteredItems = useMemo(() => {
+    return activeFilter === 'all' 
+      ? items 
+      : items.filter(item => item.type === activeFilter);
+  }, [items, activeFilter]);
+
+  // Memoize render function to prevent recreating on every render
+  const renderItem = useCallback(({ item }: { item: ContinueWatchingItem }) => {
     const posterUrl = tmdbService.getImageURL(item.poster_path, 'w500');
     const title = item.title;
+
+    // DEBUG: Log each item being rendered
+    console.log(`[ContinueWatchingSection] 🎬 Rendering item:`, {
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      nextEpisode: item.nextEpisode ? `S${item.nextEpisode.season}E${item.nextEpisode.episode}` : 'N/A',
+      progress: `${item.progress}%`,
+      lastWatched: item.lastWatchedAt,
+    });
 
     return (
       <TouchableOpacity
@@ -92,7 +106,10 @@ export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = (
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [onItemPress, onRemove]);
+
+  // Memoize key extractor
+  const keyExtractor = useCallback((item: ContinueWatchingItem) => `${item.type}-${item.id}`, []);
 
   // Render loading state
   if (loading) {
@@ -126,14 +143,34 @@ export const ContinueWatchingSection: React.FC<ContinueWatchingSectionProps> = (
       <FlatList
         data={filteredItems}
         renderItem={renderItem}
-        keyExtractor={(item) => `${item.type}-${item.id}`}
+        keyExtractor={keyExtractor}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={3}
+        windowSize={5}
       />
     </View>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function - only re-render if these actually change
+  return (
+    prevProps.loading === nextProps.loading &&
+    prevProps.error === nextProps.error &&
+    prevProps.activeFilter === nextProps.activeFilter &&
+    prevProps.items.length === nextProps.items.length &&
+    // Deep compare items by checking if any item's key properties changed
+    prevProps.items.every((item, index) => {
+      const nextItem = nextProps.items[index];
+      return nextItem && 
+        item.id === nextItem.id &&
+        item.progress === nextItem.progress &&
+        item.nextEpisode?.season === nextItem.nextEpisode?.season &&
+        item.nextEpisode?.episode === nextItem.nextEpisode?.episode;
+    })
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

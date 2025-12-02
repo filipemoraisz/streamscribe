@@ -14,10 +14,33 @@ type OfflineAction =
 
 class ProgressService {
     private readonly QUEUE_KEY = 'streamscribe_offline_queue';
+    private progressListeners: Set<() => void> = new Set();
 
     constructor() {
         // Attempt to sync on startup
         this.syncPendingActions();
+    }
+
+    /**
+     * Subscribe to progress updates
+     * Returns unsubscribe function
+     */
+    onProgressUpdate(callback: () => void): () => void {
+        this.progressListeners.add(callback);
+        return () => this.progressListeners.delete(callback);
+    }
+
+    /**
+     * Notify all listeners that progress has been updated
+     */
+    private notifyProgressUpdate(): void {
+        this.progressListeners.forEach(listener => {
+            try {
+                listener();
+            } catch (error) {
+                console.error('Error in progress listener:', error);
+            }
+        });
     }
 
     private async getProgressKey(type: 'episodes' | 'shows'): Promise<string> {
@@ -273,7 +296,7 @@ class ProgressService {
     ): Promise<void> {
         console.log(`[Progress] markEpisodeWatched called for showId: ${showId}, S${seasonNumber}E${episodeNumber}`);
         try {
-            // 1. Optimistic Update
+            // 1. Optimistic Update FIRST (instant UI feedback - no blocking)
             const key = await this.getProgressKey('episodes');
             const data = await AsyncStorage.getItem(key);
             const allProgress: EpisodeProgress[] = data ? JSON.parse(data) : [];
@@ -301,8 +324,19 @@ class ProgressService {
             await AsyncStorage.setItem(key, JSON.stringify(filtered));
             await this.updateShowProgressLocal(showId);
 
-            // 2. Sync to Supabase immediately (for achievement checking and streak tracking)
-            if (userId !== 'guest') {
+            // 2. Notify listeners IMMEDIATELY for instant UI update
+            this.notifyProgressUpdate();
+            console.log('[Progress] ✅ UI notified - episode marked as watched locally');
+
+            // 3. Background sync to Supabase (non-blocking - don't await)
+            // This runs in the background and doesn't block the UI
+            Promise.resolve().then(async () => {
+                if (userId === 'guest') {
+                    console.log('[Progress] Skipping background sync - user is guest');
+                    return;
+                }
+                
+            if (true) { // Keep the original if structure
                 console.log('[Progress] Syncing episode to Supabase for achievement checking');
                 
                 // Check if online
@@ -372,18 +406,36 @@ class ProgressService {
             }
 
             // 4. Check achievements (viewing and streak)
-            if (userId !== 'guest') {
-                console.log(`[Progress] Checking achievements for user: ${userId}`);
-                try {
-                    await achievementChecker.checkEpisodeAchievements(userId);
-                    await achievementChecker.checkStreakAchievements(userId);
-                } catch (achievementError) {
-                    console.error('[Progress] Error checking achievements:', achievementError);
-                    // Don't fail the main operation if achievement check fails
-                }
-            } else {
-                console.log('[Progress] Skipping achievement check - user is guest');
+            console.log(`[Progress] Checking achievements for user: ${userId}`);
+            try {
+                await achievementChecker.checkEpisodeAchievements(userId);
+                await achievementChecker.checkStreakAchievements(userId);
+            } catch (achievementError) {
+                console.error('[Progress] Error checking achievements:', achievementError);
+                // Don't fail the main operation if achievement check fails
             }
+
+            // 5. Background validation (non-blocking - runs after UI update)
+            // This validates the episode exists in TMDB to catch data issues
+            tmdbService.getTVShowDetails(showId).then(showDetails => {
+                if (showDetails && showDetails.seasons) {
+                    const season = showDetails.seasons.find(s => s.season_number === seasonNumber);
+                    
+                    if (!season) {
+                        console.error(`[Progress] ⚠️ Background validation: Season ${seasonNumber} does not exist for show ${showId}`);
+                    } else if (episodeNumber < 1 || episodeNumber > season.episode_count) {
+                        console.error(`[Progress] ⚠️ Background validation: Episode ${episodeNumber} does not exist in Season ${seasonNumber} (max: ${season.episode_count})`);
+                    } else {
+                        console.log(`[Progress] ✅ Background validation passed: S${seasonNumber}E${episodeNumber}`);
+                    }
+                }
+            }).catch(err => {
+                console.warn('[Progress] Background validation failed (may be offline):', err);
+            });
+            
+            }).catch(error => {
+                console.error('[Progress] Background sync error:', error);
+            });
 
         } catch (error) {
             console.error('Error marking episode watched:', error);
@@ -391,6 +443,7 @@ class ProgressService {
     }
 
     async markEpisodeUnwatched(showId: number, seasonNumber: number, episodeNumber: number): Promise<void> {
+        console.log(`[Progress] markEpisodeUnwatched called for showId: ${showId}, S${seasonNumber}E${episodeNumber}`);
         try {
             // 1. Optimistic Update
             const key = await this.getProgressKey('episodes');
@@ -423,6 +476,10 @@ class ProgressService {
                     payload: { showId, seasonNumber, episodeNumber }
                 });
             }
+
+            // 4. Notify listeners that progress has been updated
+            console.log('[Progress] ✅ Episode unmarked, notifying listeners');
+            this.notifyProgressUpdate();
 
         } catch (error) {
             console.error('Error marking episode unwatched:', error);
@@ -831,12 +888,61 @@ class ProgressService {
                     return prev;
                 });
 
-                // Next episode is simply latest + 1 (we'll validate against show details if needed)
-                // For performance, we assume next episode exists and let the UI handle edge cases
-                result.set(showId, {
-                    season: latestWatched.season_number,
-                    episode: latestWatched.episode_number + 1
-                });
+                // Check if next episode exists in current season, or move to next season
+                try {
+                    const showDetails = await tmdbService.getTVShowDetails(showId);
+                    if (!showDetails || !showDetails.seasons) {
+                        // Fallback: assume next episode exists
+                        result.set(showId, {
+                            season: latestWatched.season_number,
+                            episode: latestWatched.episode_number + 1
+                        });
+                        continue;
+                    }
+
+                    // Find current season details
+                    const currentSeason = showDetails.seasons.find(s => s.season_number === latestWatched.season_number);
+                    
+                    if (!currentSeason) {
+                        // Season not found, fallback to next episode
+                        result.set(showId, {
+                            season: latestWatched.season_number,
+                            episode: latestWatched.episode_number + 1
+                        });
+                        continue;
+                    }
+
+                    // Check if there's a next episode in current season
+                    const nextEpisodeInSeason = latestWatched.episode_number + 1;
+                    
+                    if (nextEpisodeInSeason <= currentSeason.episode_count) {
+                        // Next episode exists in current season
+                        result.set(showId, {
+                            season: latestWatched.season_number,
+                            episode: nextEpisodeInSeason
+                        });
+                    } else {
+                        // Current season is complete, move to next season
+                        const nextSeasonNumber = latestWatched.season_number + 1;
+                        const nextSeason = showDetails.seasons.find(s => s.season_number === nextSeasonNumber);
+                        
+                        if (nextSeason && nextSeason.episode_count > 0) {
+                            // Next season exists and has episodes
+                            result.set(showId, {
+                                season: nextSeasonNumber,
+                                episode: 1
+                            });
+                        }
+                        // If no next season, don't add to result (show is completed)
+                    }
+                } catch (error) {
+                    console.error(`Error checking next episode for show ${showId}:`, error);
+                    // Fallback: assume next episode exists
+                    result.set(showId, {
+                        season: latestWatched.season_number,
+                        episode: latestWatched.episode_number + 1
+                    });
+                }
             }
 
             return result;

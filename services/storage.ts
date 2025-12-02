@@ -509,6 +509,67 @@ class StorageService {
       console.error('Error unwatching movie:', error);
     }
   }
+
+  // --- User Stats Caching ---
+
+  private readonly STATS_CACHE_KEY = 'streamscribe_user_stats_cache';
+  private readonly STATS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  async getCachedUserStats(): Promise<any | null> {
+    try {
+      const userId = await this.getUserId();
+      if (!userId) return null;
+
+      const cacheKey = `${this.STATS_CACHE_KEY}_${userId}`;
+      const cached = await AsyncStorage.getItem(cacheKey);
+      
+      if (!cached) return null;
+
+      const { data, timestamp } = JSON.parse(cached);
+      const now = Date.now();
+
+      // Check if cache is still valid (within 5 minutes)
+      if (now - timestamp < this.STATS_CACHE_DURATION) {
+        return data;
+      }
+
+      // Cache expired, remove it
+      await AsyncStorage.removeItem(cacheKey);
+      return null;
+    } catch (error) {
+      console.error('Error getting cached user stats:', error);
+      return null;
+    }
+  }
+
+  async cacheUserStats(stats: any): Promise<void> {
+    try {
+      const userId = await this.getUserId();
+      if (!userId) return;
+
+      const cacheKey = `${this.STATS_CACHE_KEY}_${userId}`;
+      const cacheData = {
+        data: stats,
+        timestamp: Date.now(),
+      };
+
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheData));
+    } catch (error) {
+      console.error('Error caching user stats:', error);
+    }
+  }
+
+  async clearStatsCache(): Promise<void> {
+    try {
+      const userId = await this.getUserId();
+      if (!userId) return;
+
+      const cacheKey = `${this.STATS_CACHE_KEY}_${userId}`;
+      await AsyncStorage.removeItem(cacheKey);
+    } catch (error) {
+      console.error('Error clearing stats cache:', error);
+    }
+  }
 }
 
 export const storageService = new StorageService();

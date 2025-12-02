@@ -63,12 +63,26 @@ class ContinueWatchingService {
       // Process each show in progress
       for (const showProgress of inProgressShows) {
         try {
+          console.log(`[ContinueWatching] 🔍 Processing show ${showProgress.show_id}:`, {
+            show_id: showProgress.show_id,
+            current_season: showProgress.current_season,
+            current_episode: showProgress.current_episode,
+            total_watched: showProgress.total_watched_episodes,
+            status: showProgress.status,
+            last_watched: showProgress.last_watched_date,
+          });
+
           // Get show details from TMDB (cached by tmdbService)
           const showDetails = await tmdbService.getTVShowDetails(showProgress.show_id);
-          if (!showDetails) continue;
+          if (!showDetails) {
+            console.log(`[ContinueWatching] ⚠️ No show details found for ${showProgress.show_id}`);
+            continue;
+          }
 
           // Get next episode from batch result
           const nextEpisodeInfo = nextEpisodesMap.get(showProgress.show_id);
+          
+          console.log(`[ContinueWatching] 📺 Show: "${showDetails.name}" - Next episode:`, nextEpisodeInfo);
           
           // Only include if there's a next episode to watch (not completed)
           if (nextEpisodeInfo) {
@@ -77,7 +91,7 @@ class ContinueWatchingService {
             const watchedEpisodes = showProgress.total_watched_episodes;
             const progress = Math.min(100, Math.round((watchedEpisodes / totalEpisodes) * 100));
 
-            items.push({
+            const item: ContinueWatchingItem = {
               id: showProgress.show_id,
               type: 'tv',
               title: showDetails.name,
@@ -93,10 +107,21 @@ class ContinueWatchingService {
                 // The UI can fetch full episode details if needed
                 name: `S${nextEpisodeInfo.season}E${nextEpisodeInfo.episode}`,
               },
+            };
+
+            console.log(`[ContinueWatching] ✅ Added to Continue Watching:`, {
+              title: item.title,
+              nextEpisode: `S${nextEpisodeInfo.season}E${nextEpisodeInfo.episode}`,
+              progress: `${progress}%`,
+              watched: `${watchedEpisodes}/${totalEpisodes}`,
             });
+
+            items.push(item);
+          } else {
+            console.log(`[ContinueWatching] ⏭️ No next episode for "${showDetails.name}" - likely completed`);
           }
         } catch (error) {
-          console.error(`[ContinueWatching] Error processing show ${showProgress.show_id}:`, error);
+          console.error(`[ContinueWatching] ❌ Error processing show ${showProgress.show_id}:`, error);
           // Continue with other shows
         }
       }

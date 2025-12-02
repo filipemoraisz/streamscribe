@@ -1,4 +1,3 @@
-import { ImpactHeader } from '@/components/ImpactHeader';
 import { MediaSection } from '@/components/MediaSection';
 import { ConnectionBanner } from '@/components/ConnectionBanner';
 import { StartWatchingWidget } from '@/components/start-watching-widget/StartWatchingWidget';
@@ -12,6 +11,8 @@ import { NewThisWeekSection } from '@/components/NewThisWeekSection';
 import { LeavingSoonSection } from '@/components/LeavingSoonSection';
 import { WatchlistMoviesSection } from '@/components/WatchlistMoviesSection';
 import { CustomTabHeader } from '@/components/CustomTabHeader';
+import { AtAGlanceHero } from '@/components/AtAGlanceHero';
+import { ContextualRecommendationsModal } from '@/components/ContextualRecommendationsModal';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { useRealTimeStatus } from '@/components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '@/components/hooks/useRealTimeUpdates';
@@ -21,13 +22,16 @@ import { Colors } from '@/constants/Colors';
 import { optimizerService } from '@/services/optimizer';
 import { progressService } from '@/services/progress';
 import { storageService } from '@/services/storage';
+import { userActivityService } from '@/services/userActivity';
+import { achievementsService } from '@/services/achievements';
 import { tmdbService } from '@/services/tmdb';
 import { tasteProfileService } from '@/services/tasteProfileService';
 import { continueWatchingService, ContinueWatchingItem } from '@/services/continueWatching';
 import { personalizationService } from '@/services/personalization';
 import { contentDiscoveryService } from '@/services/contentDiscovery';
 import { onboardingService } from '@/services/onboarding';
-import { Movie, TVShow, WatchlistItem, BecauseYouWatchedSection as BecauseYouWatchedSectionType, GenreSection as GenreSectionType, LeavingSoonItem } from '@/types';
+import { contextualMessagingService } from '@/services/contextualMessaging';
+import { Movie, TVShow, WatchlistItem, BecauseYouWatchedSection as BecauseYouWatchedSectionType, GenreSection as GenreSectionType, LeavingSoonItem, UserStats, AchievementStats } from '@/types';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -94,6 +98,13 @@ export default function HomeScreen() {
   const [newThisWeek, setNewThisWeek] = useState<(Movie | TVShow)[]>([]);
   const [leavingSoon, setLeavingSoon] = useState<LeavingSoonItem[]>([]);
   const [watchlistMovies, setWatchlistMovies] = useState<WatchlistItem[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  
+  // Contextual recommendations modal state
+  const [showContextualModal, setShowContextualModal] = useState(false);
+  const [contextualGenres, setContextualGenres] = useState<number[]>([]);
+  const [contextualMood, setContextualMood] = useState('');
+  const [contextualMessage, setContextualMessage] = useState('');
 
   const scrollY = useSharedValue(0);
   const lastFocusRefreshTime = React.useRef(0);
@@ -257,13 +268,19 @@ export default function HomeScreen() {
   const fetchContinueWatching = async () => {
     if (!user) return;
     
+    console.log('[HomeScreen] 🔄 Fetching Continue Watching...');
     setSectionLoading('continue-watching', true);
     try {
       const items = await continueWatchingService.getContinueWatching();
+      console.log(`[HomeScreen] ✅ Continue Watching loaded: ${items.length} items`, items.map(i => ({
+        title: i.title,
+        nextEp: i.nextEpisode ? `S${i.nextEpisode.season}E${i.nextEpisode.episode}` : 'N/A',
+        progress: `${i.progress}%`
+      })));
       setContinueWatching(items);
       clearSectionError('continue-watching');
     } catch (error) {
-      console.error('Error fetching continue watching:', error);
+      console.error('[HomeScreen] ❌ Error fetching continue watching:', error);
       setSectionError('continue-watching', 'Failed to load continue watching');
     } finally {
       setSectionLoading('continue-watching', false);
@@ -336,6 +353,82 @@ export default function HomeScreen() {
     }
   };
 
+  const fetchUserStats = async () => {
+    // Fetch ONLY user stats (for "Your Journey" widget)
+    // This is called when episodes are marked as watched
+    
+    try {
+      if (!user) return;
+
+      // Try to load from cache first
+      const cachedStats = await storageService.getCachedUserStats();
+      
+      if (cachedStats) {
+        // Use cached stats immediately (NO loading state!)
+        setUserStats(cachedStats);
+        clearSectionError('stats');
+        
+        // Fetch fresh data in background and update cache silently
+        Promise.all([
+          userActivityService.getUserStats(user.id),
+          achievementsService.getAchievementStats(user.id),
+          optimizerService.generateOptimizationPlan(watchlist) // Use existing watchlist state
+        ]).then(([stats, achStats, optimizationPlan]) => {
+          const freshStats = {
+            ...stats,
+            achievementsTotal: achStats.total_available,
+            totalSavings: optimizationPlan.totalAnnualSavings,
+          };
+          
+          setUserStats(freshStats);
+          storageService.cacheUserStats(freshStats);
+          
+          // Store old stats format
+          setStats({
+            savings: optimizationPlan.totalAnnualSavings,
+            efficiency: optimizationPlan.averageEfficiency,
+            streak: optimizationPlan.currentStreak,
+          });
+        }).catch(err => {
+          console.error('Error refreshing stats in background:', err);
+        });
+      } else {
+        // No cache - show loading state only on first load
+        setSectionLoading('stats', true);
+        
+        const [stats, achStats, optimizationPlan] = await Promise.all([
+          userActivityService.getUserStats(user.id),
+          achievementsService.getAchievementStats(user.id),
+          optimizerService.generateOptimizationPlan(watchlist) // Use existing watchlist state
+        ]);
+        
+        const freshStats = {
+          ...stats,
+          achievementsTotal: achStats.total_available,
+          totalSavings: optimizationPlan.totalAnnualSavings,
+        };
+        
+        setUserStats(freshStats);
+        storageService.cacheUserStats(freshStats);
+        
+        // Store old stats format
+        setStats({
+          savings: optimizationPlan.totalAnnualSavings,
+          efficiency: optimizationPlan.averageEfficiency,
+          streak: optimizationPlan.currentStreak,
+        });
+        
+        clearSectionError('stats');
+        setSectionLoading('stats', false);
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load stats';
+      setSectionError('stats', errorMessage);
+      setSectionLoading('stats', false);
+    }
+  };
+
   const fetchUserData = async () => {
     // Set loading states for user data sections
     setSectionLoading('watchlist', true);
@@ -375,19 +468,72 @@ export default function HomeScreen() {
         // Don't set error state for next episodes as it's not critical
       }
 
-      // Calculate stats
-      try {
-        const plan = await optimizerService.generateOptimizationPlan(watchlistData);
-        setStats({
-          savings: plan.totalAnnualSavings,
-          efficiency: plan.averageEfficiency,
-          streak: plan.currentStreak,
-        });
-        clearSectionError('stats');
-      } catch (error) {
-        console.error('Error calculating stats:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to load stats';
-        setSectionError('stats', errorMessage);
+      // Fetch user stats for At a Glance hero
+      if (user) {
+        try {
+          // Try to load from cache first
+          const cachedStats = await storageService.getCachedUserStats();
+          
+          if (cachedStats) {
+            // Use cached stats immediately
+            setUserStats(cachedStats);
+            clearSectionError('stats');
+            
+            // Fetch fresh data in background and update cache
+            Promise.all([
+              userActivityService.getUserStats(user.id),
+              achievementsService.getAchievementStats(user.id),
+              optimizerService.generateOptimizationPlan(watchlistData)
+            ]).then(([stats, achStats, optimizationPlan]) => {
+              const freshStats = {
+                ...stats,
+                achievementsTotal: achStats.total_available,
+                totalSavings: optimizationPlan.totalAnnualSavings,
+              };
+              
+              setUserStats(freshStats);
+              storageService.cacheUserStats(freshStats);
+              
+              // Store old stats format
+              setStats({
+                savings: optimizationPlan.totalAnnualSavings,
+                efficiency: optimizationPlan.averageEfficiency,
+                streak: optimizationPlan.currentStreak,
+              });
+            }).catch(err => {
+              console.error('Error refreshing stats in background:', err);
+            });
+          } else {
+            // No cache, fetch fresh data
+            const [stats, achStats, optimizationPlan] = await Promise.all([
+              userActivityService.getUserStats(user.id),
+              achievementsService.getAchievementStats(user.id),
+              optimizerService.generateOptimizationPlan(watchlistData)
+            ]);
+            
+            const freshStats = {
+              ...stats,
+              achievementsTotal: achStats.total_available,
+              totalSavings: optimizationPlan.totalAnnualSavings,
+            };
+            
+            setUserStats(freshStats);
+            storageService.cacheUserStats(freshStats);
+            
+            // Store old stats format
+            setStats({
+              savings: optimizationPlan.totalAnnualSavings,
+              efficiency: optimizationPlan.averageEfficiency,
+              streak: optimizationPlan.currentStreak,
+            });
+            
+            clearSectionError('stats');
+          }
+        } catch (error) {
+          console.error('Error fetching user stats:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Failed to load stats';
+          setSectionError('stats', errorMessage);
+        }
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -404,6 +550,16 @@ export default function HomeScreen() {
   const loadAllData = async () => {
     try {
       setLoading(true);
+      
+      // INSTANT LOAD: Load cached stats immediately (before anything else)
+      // This makes "Your Journey" appear instantly with no loading state
+      if (user) {
+        const cachedStats = await storageService.getCachedUserStats();
+        if (cachedStats) {
+          setUserStats(cachedStats);
+          console.log('[HomeScreen] ⚡ Loaded cached stats instantly');
+        }
+      }
       
       // Check if user has seen welcome modal
       try {
@@ -473,6 +629,23 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadAllData();
+  }, []);
+
+  // Subscribe to progress updates for real-time Continue Watching and Stats refresh
+  useEffect(() => {
+    const unsubscribe = progressService.onProgressUpdate(() => {
+      // Refresh Continue Watching when progress changes
+      fetchContinueWatching().catch(error => {
+        console.error('Error refreshing continue watching:', error);
+      });
+      
+      // Refresh ONLY user stats (not watchlist) to update "Your Journey" widget
+      fetchUserStats().catch(error => {
+        console.error('Error refreshing user stats:', error);
+      });
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Only refresh user data on focus if we've been away for a while (30+ seconds)
@@ -598,17 +771,31 @@ export default function HomeScreen() {
         }));
       }
 
+      // Optimistic update: Increment episode count in Your Journey immediately
+      if (userStats) {
+        const updatedStats = {
+          ...userStats,
+          totalEpisodes: userStats.totalEpisodes + 1
+        };
+        setUserStats(updatedStats);
+        // Cache the optimistic update
+        await storageService.cacheUserStats(updatedStats);
+      }
+
       // Mark as watched in background
       await progressService.markEpisodeWatched(item.id, season, episode);
 
-      // Refresh data silently to ensure consistency
-      await fetchUserData();
+      // Note: No manual refresh needed here!
+      // The progressService.onProgressUpdate subscription will automatically:
+      // 1. Refresh Continue Watching
+      // 2. Refresh user stats
+      // This prevents unnecessary watchlist refreshes
     } catch (error) {
       console.error('Error marking episode watched:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to mark episode as watched';
       Alert.alert("Error", `${errorMessage}. Please try again.`);
-      // Revert optimistic update by refreshing data
-      fetchUserData().catch(err => {
+      // Revert optimistic update by refreshing stats only
+      fetchUserStats().catch(err => {
         console.error('Error reverting episode update:', err);
       });
     }
@@ -726,8 +913,8 @@ export default function HomeScreen() {
     await handleWelcomeDismiss();
   };
 
-  // Continue watching handlers
-  const handleContinueWatchingItemPress = (item: ContinueWatchingItem) => {
+  // Continue watching handlers - memoized to prevent unnecessary re-renders
+  const handleContinueWatchingItemPress = useCallback((item: ContinueWatchingItem) => {
     try {
       if (item.type === 'tv' && item.nextEpisode) {
         router.push(`/episode/${item.id}/${item.nextEpisode.season}/${item.nextEpisode.episode}`);
@@ -738,9 +925,9 @@ export default function HomeScreen() {
       console.error('Error navigating to continue watching item:', error);
       Alert.alert('Error', 'Failed to open content. Please try again.');
     }
-  };
+  }, []);
 
-  const handleContinueWatchingRemove = async (id: number, type: 'movie' | 'tv') => {
+  const handleContinueWatchingRemove = useCallback(async (id: number, type: 'movie' | 'tv') => {
     try {
       // Remove from continue watching list optimistically
       setContinueWatching(prev => prev.filter(item => !(item.id === id && item.type === type)));
@@ -754,7 +941,7 @@ export default function HomeScreen() {
         console.error('Error reverting continue watching removal:', err);
       });
     }
-  };
+  }, []);
 
   if (loading && !refreshing) {
     return (
@@ -771,6 +958,15 @@ export default function HomeScreen() {
         visible={showWelcome}
         onDismiss={handleWelcomeDismiss}
         onGetStarted={handleGetStarted}
+      />
+
+      {/* Contextual Recommendations Modal */}
+      <ContextualRecommendationsModal
+        visible={showContextualModal}
+        onClose={() => setShowContextualModal(false)}
+        genreIds={contextualGenres}
+        mood={contextualMood}
+        message={contextualMessage}
       />
 
       {/* Connection Status Banner */}
@@ -796,11 +992,26 @@ export default function HomeScreen() {
           />
         }
       >
-        <ImpactHeader
-          totalSavings={stats.savings}
-          efficiency={stats.efficiency}
-          streak={stats.streak}
-        />
+        {/* At a Glance Hero Section */}
+        {userStats ? (
+          <AtAGlanceHero
+            stats={{
+              currentStreak: userStats.currentStreak,
+              totalEpisodes: userStats.totalEpisodes,
+              totalSavings: userStats.totalSavings,
+            }}
+            loading={sectionLoadingStates['stats']}
+            onPress={() => router.push('/(tabs)/profile')}
+            onShowRecommendations={(genreIds, mood) => {
+              setContextualGenres(genreIds);
+              setContextualMood(mood);
+              setContextualMessage(contextualMessagingService.getContextualMessage(userStats.currentStreak).message);
+              setShowContextualModal(true);
+            }}
+          />
+        ) : (
+          <SkeletonLoader type="section" />
+        )}
 
         {/* Continue Watching Section - Before watchlist */}
         {sectionLoadingStates['continue-watching'] && continueWatching.length === 0 ? (
