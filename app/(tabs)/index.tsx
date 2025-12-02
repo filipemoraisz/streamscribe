@@ -11,6 +11,7 @@ import { GenreSection } from '@/components/GenreSection';
 import { NewThisWeekSection } from '@/components/NewThisWeekSection';
 import { LeavingSoonSection } from '@/components/LeavingSoonSection';
 import { WatchlistMoviesSection } from '@/components/WatchlistMoviesSection';
+import { CustomTabHeader } from '@/components/CustomTabHeader';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { useRealTimeStatus } from '@/components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '@/components/hooks/useRealTimeUpdates';
@@ -994,55 +995,30 @@ export default function HomeScreen() {
       </Animated.ScrollView>
 
       {/* Sticky Header with Blur */}
-      <Animated.View
-        style={[
-          styles.headerContainer,
-          { height: HEADER_HEIGHT + insets.top, paddingTop: insets.top }
-        ]}
-      >
-        <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
-          <BlurView
-            intensity={80}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
-        <View style={styles.headerContent}>
-          <View style={styles.topRow}>
-            <View style={styles.brandContainer}>
-              <Image
-                source={require('@/assets/images/streamscribe_round.png')}
-                style={styles.appIcon}
-                resizeMode="contain"
-              />
-              <Image
-                source={require('@/assets/images/logo-text-white.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+      <CustomTabHeader
+        logoImage={require('@/assets/images/logo-text-white.png')}
+        headerAnimatedStyle={headerAnimatedStyle}
+        height={HEADER_HEIGHT + insets.top}
+        paddingTop={insets.top}
+        rightButton={
+          <TouchableOpacity
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications" size={24} color={Colors.text} />
+            <View style={styles.badgeContainer}>
+              <NotificationBadge count={unreadNotifications} size="small" />
             </View>
-
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => router.push('/notifications')}
-            >
-              <Ionicons name="notifications" size={24} color={Colors.text} />
-              <View style={styles.badgeContainer}>
-                <NotificationBadge count={unreadNotifications} size="small" />
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Filters inside header */}
-          <View style={styles.filtersRow}>
-            <QuickFilters
-              activeFilter={activeFilter}
-              onFilterChange={handleFilterChange}
-            />
-          </View>
+          </TouchableOpacity>
+        }
+      >
+        {/* Quick Filters inside header */}
+        <View style={styles.filtersRow}>
+          <QuickFilters
+            activeFilter={activeFilter}
+            onFilterChange={handleFilterChange}
+          />
         </View>
-      </Animated.View>
+      </CustomTabHeader>
     </View>
   );
 }
@@ -1088,7 +1064,7 @@ const styles = StyleSheet.create({
   },
   filtersRow: {
     paddingBottom: 8,
-    marginLeft: -20, // Align with logo icon (compensate for filter chip padding)
+    paddingLeft: 0,
   },
   appIcon: {
     width: 36,

@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { MediaCard } from '../../components/MediaCard';
 import { FilterType, WatchlistFilter } from '../../components/WatchlistFilter';
+import { CustomTabHeader } from '../../components/CustomTabHeader';
 import { ConnectionBanner } from '../../components/ConnectionBanner';
 import { useRealTimeStatus } from '../../components/hooks/useRealTimeStatus';
 import { useAutoRefreshOnUpdates } from '../../components/hooks/useRealTimeUpdates';
@@ -416,41 +417,19 @@ export default function WatchlistScreen() {
       )}
 
       {/* Sticky Header with Blur */}
-      <Animated.View
-        style={[
-          styles.headerContainer,
-          { height: HEADER_HEIGHT + insets.top, paddingTop: insets.top }
-        ]}
+      <CustomTabHeader
+        title="Watchlist"
+        headerAnimatedStyle={headerAnimatedStyle}
+        height={HEADER_HEIGHT + insets.top}
+        paddingTop={insets.top}
+        rightButton={
+          <TouchableOpacity onPress={() => router.push('/history')}>
+            <Ionicons name="list-outline" size={24} color={Colors.text} />
+          </TouchableOpacity>
+        }
       >
-        <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
-          <BlurView
-            intensity={80}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
-        <View style={styles.headerContent}>
-          <View style={styles.header}>
-            <View style={styles.brandContainer}>
-              <Image
-                source={require('@/assets/images/streamscribe_round.png')}
-                style={styles.appIcon}
-                resizeMode="contain"
-              />
-              <Text style={styles.headerTitle}>Watchlist</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push('/history')}
-              style={styles.archiveButton}
-            >
-              <Ionicons name="list-outline" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
-        </View>
-      </Animated.View>
+        <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
+      </CustomTabHeader>
     </View>
   );
 }

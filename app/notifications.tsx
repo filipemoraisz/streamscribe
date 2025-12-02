@@ -80,15 +80,15 @@ export default function NotificationsScreen() {
   const getNotificationColor = (type: string) => {
     switch (type) {
       case 'episode_release':
-        return '#FF6600'; // Primary orange
+        return '#FF5C00'; // Primary orange
       case 'streaming_availability':
-        return '#FF8833'; // Light orange
+        return '#FF7A33'; // Light orange
       case 'recommendation':
-        return '#C4460C'; // Secondary orange
+        return '#FF5C00'; // Primary orange
       case 'progress_sync':
-        return '#FF9944'; // Warm orange
+        return '#FF8F4D'; // Warm orange
       case 'achievement_unlock':
-        return '#990000'; // Accent red-orange
+        return '#FF5C00'; // Primary orange
       default:
         return Colors.primary;
     }

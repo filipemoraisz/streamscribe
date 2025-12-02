@@ -9,11 +9,12 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
-  ActivityIndicator
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Logo } from '../../components/Logo';
+import { CustomTabHeader } from '../../components/CustomTabHeader';
 import { CompactProfileHeader } from '../../components/profile/CompactProfileHeader';
 import { QuickActionsGrid, QuickAction } from '../../components/profile/QuickActionsGrid';
 import { FeaturedAchievements } from '../../components/profile/FeaturedAchievements';
@@ -351,30 +352,17 @@ export default function ProfileScreen() {
       </Animated.ScrollView>
 
       {/* Sticky Header */}
-      <Animated.View
-        style={[
-          styles.headerContainer,
-          { height: HEADER_HEIGHT + insets.top, paddingTop: insets.top }
-        ]}
-      >
-        <Animated.View style={[StyleSheet.absoluteFill, headerAnimatedStyle]}>
-          <BlurView
-            intensity={95}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
-        <View style={styles.headerContent}>
-          <View style={styles.brandContainer}>
-            <Logo />
-            <Text style={styles.headerTitle}>My Profile</Text>
-          </View>
+      <CustomTabHeader
+        title="My Profile"
+        headerAnimatedStyle={headerAnimatedStyle}
+        height={HEADER_HEIGHT + insets.top}
+        paddingTop={insets.top}
+        rightButton={
           <TouchableOpacity onPress={() => router.push('/settings')}>
             <SymbolView name="gearshape" size={24} tintColor={iconColor} />
           </TouchableOpacity>
-        </View>
-      </Animated.View>
+        }
+      />
     </View>
   );
 }
@@ -405,6 +393,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  appIcon: {
+    width: 36,
+    height: 36,
   },
   headerTitle: {
     fontSize: 28,
