@@ -102,13 +102,12 @@ const FilterChip: React.FC<FilterChipProps> = ({ filter, isActive, onPress }) =>
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
+    paddingTop: 4,
+    paddingBottom: 8,
     backgroundColor: 'transparent',
   },
   scrollContent: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 0,
     gap: Spacing.xs,
   },
   chip: {

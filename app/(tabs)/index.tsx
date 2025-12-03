@@ -61,7 +61,7 @@ type Section = {
   type: 'movie' | 'tv';
 };
 
-const HEADER_HEIGHT = 110; // Increased to accommodate filters
+const HEADER_HEIGHT = 120; // Increased to accommodate filters
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -80,6 +80,13 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
   
+  // Cache timestamps for smart refresh logic
+  const watchlistCacheTime = React.useRef(0);
+  const WATCHLIST_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  
+  // Request deduplication to prevent multiple simultaneous requests
+  const pendingRequests = React.useRef<Map<string, Promise<any>>>(new Map());
+  
   // Section-level state management
   const [sectionLoadingStates, setSectionLoadingStates] = useState<Record<string, boolean>>({});
   const [sectionErrors, setSectionErrors] = useState<Record<string, string | null>>({});
@@ -97,8 +104,12 @@ export default function HomeScreen() {
   const [genreSections, setGenreSections] = useState<GenreSectionType[]>([]);
   const [newThisWeek, setNewThisWeek] = useState<(Movie | TVShow)[]>([]);
   const [leavingSoon, setLeavingSoon] = useState<LeavingSoonItem[]>([]);
-  const [watchlistMovies, setWatchlistMovies] = useState<WatchlistItem[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  
+  // Memoize watchlist movies to prevent unnecessary recalculations
+  const watchlistMovies = React.useMemo(() => {
+    return watchlist.filter(item => item.type === 'movie' && !item.watched);
+  }, [watchlist]);
   
   // Contextual recommendations modal state
   const [showContextualModal, setShowContextualModal] = useState(false);
@@ -268,9 +279,17 @@ export default function HomeScreen() {
   const fetchContinueWatching = async () => {
     if (!user) return;
     
+    // Request deduplication
+    if (pendingRequests.current.has('continueWatching')) {
+      console.log('[HomeScreen] ⏭️ Skipping duplicate continueWatching request');
+      return pendingRequests.current.get('continueWatching');
+    }
+    
     console.log('[HomeScreen] 🔄 Fetching Continue Watching...');
     setSectionLoading('continue-watching', true);
-    try {
+    
+    const promise = (async () => {
+      try {
       const items = await continueWatchingService.getContinueWatching();
       console.log(`[HomeScreen] ✅ Continue Watching loaded: ${items.length} items`, items.map(i => ({
         title: i.title,
@@ -284,7 +303,12 @@ export default function HomeScreen() {
       setSectionError('continue-watching', 'Failed to load continue watching');
     } finally {
       setSectionLoading('continue-watching', false);
+      pendingRequests.current.delete('continueWatching');
     }
+    })();
+    
+    pendingRequests.current.set('continueWatching', promise);
+    return promise;
   };
 
   const fetchBecauseYouWatched = async () => {
@@ -430,11 +454,18 @@ export default function HomeScreen() {
   };
 
   const fetchUserData = async () => {
+    // Request deduplication: Check if already fetching
+    if (pendingRequests.current.has('userData')) {
+      console.log('[HomeScreen] ⏭️ Skipping duplicate userData request');
+      return pendingRequests.current.get('userData');
+    }
+    
     // Set loading states for user data sections
     setSectionLoading('watchlist', true);
     setSectionLoading('stats', true);
 
-    try {
+    const promise = (async () => {
+      try {
       const [watchlistData] = await Promise.all([
         storageService.getWatchlist().catch(err => {
           console.error('Error fetching watchlist:', err);
@@ -444,11 +475,7 @@ export default function HomeScreen() {
       ]);
 
       setWatchlist(watchlistData);
-      
-      // Filter and set watchlist movies (unwatched movies only)
-      const unwatchedMovies = watchlistData.filter(item => item.type === 'movie' && !item.watched);
-      setWatchlistMovies(unwatchedMovies);
-      
+      watchlistCacheTime.current = Date.now(); // Update cache timestamp
       clearSectionError('watchlist');
 
       // Calculate next episodes for watchlist TV shows - OPTIMIZED: Single batch query
@@ -544,15 +571,20 @@ export default function HomeScreen() {
       // Clear loading states
       setSectionLoading('watchlist', false);
       setSectionLoading('stats', false);
+      pendingRequests.current.delete('userData');
     }
+    })();
+    
+    pendingRequests.current.set('userData', promise);
+    return promise;
   };
 
   const loadAllData = async () => {
     try {
       setLoading(true);
       
-      // INSTANT LOAD: Load cached stats immediately (before anything else)
-      // This makes "Your Journey" appear instantly with no loading state
+      // WAVE 1: Critical data (instant from cache)
+      console.log('[HomeScreen] 🌊 Wave 1: Loading cached data...');
       if (user) {
         const cachedStats = await storageService.getCachedUserStats();
         if (cachedStats) {
@@ -567,60 +599,45 @@ export default function HomeScreen() {
         setShowWelcome(!hasSeenWelcome);
       } catch (error) {
         console.error('Error checking onboarding status:', error);
-        // Default to not showing welcome modal on error
         setShowWelcome(false);
       }
       
-      // PHASE 1: Load user data first (watchlist, stats, continue watching)
-      // This is fastest as it comes from local storage/database
+      // WAVE 2: User data (fast, from local storage)
+      console.log('[HomeScreen] 🌊 Wave 2: Loading user data...');
       try {
         await fetchUserData();
       } catch (error) {
         console.error('Error loading user data:', error);
-        // Continue loading other sections even if user data fails
       }
       
       // Show UI immediately after user data loads
       setLoading(false);
+      console.log('[HomeScreen] ✅ UI ready, loading remaining content in background...');
       
-      // PHASE 2: Load personalized sections second (recommendations, genres)
-      // These require processing user's watch history
+      // WAVE 3: Personalized content (medium priority)
       if (user) {
-        // Load continue watching (user-specific, requires database query)
-        fetchContinueWatching().catch(error => {
-          console.error('Error loading continue watching:', error);
-        });
-        
-        // Load personalized recommendations (requires taste profile analysis)
-        fetchBecauseYouWatched().catch(error => {
-          console.error('Error loading because you watched:', error);
-        });
-        
-        // Load genre sections (requires watch history analysis)
-        fetchGenreSections().catch(error => {
-          console.error('Error loading genre sections:', error);
-        });
+        console.log('[HomeScreen] 🌊 Wave 3: Loading personalized content...');
+        await Promise.allSettled([
+          fetchContinueWatching(),
+          fetchBecauseYouWatched(),
+        ]);
       }
       
-      // PHASE 3: Load TMDB content last (trending, new releases)
-      // These are external API calls and can be slower
+      // WAVE 4: Discovery content (lower priority)
+      console.log('[HomeScreen] 🌊 Wave 4: Loading discovery content...');
+      await Promise.allSettled([
+        fetchGenreSections(),
+        fetchNewThisWeek(),
+        fetchLeavingSoon(),
+      ]);
       
-      // Load discovery content (new this week, leaving soon)
-      fetchNewThisWeek().catch(error => {
-        console.error('Error loading new this week:', error);
-      });
+      // WAVE 5: Generic content (lowest priority)
+      console.log('[HomeScreen] 🌊 Wave 5: Loading generic content...');
+      await fetchContent();
       
-      fetchLeavingSoon().catch(error => {
-        console.error('Error loading leaving soon:', error);
-      });
-      
-      // Load trending content sections
-      fetchContent().catch(error => {
-        console.error('Error loading content:', error);
-      });
+      console.log('[HomeScreen] 🎉 All content loaded!');
     } catch (error) {
       console.error('Critical error in loadAllData:', error);
-      // Even on critical error, try to show UI
       setLoading(false);
     } finally {
       setRefreshing(false);
@@ -648,7 +665,7 @@ export default function HomeScreen() {
     return () => unsubscribe();
   }, []);
 
-  // Only refresh user data on focus if we've been away for a while (30+ seconds)
+  // Smart focus refresh: Only refresh stale data
   // This prevents unnecessary refreshes when quickly switching tabs
   useFocusEffect(
     useCallback(() => {
@@ -657,7 +674,19 @@ export default function HomeScreen() {
       
       // Only refresh if it's been more than 30 seconds since last refresh
       if (timeSinceLastRefresh > 30000) {
-        fetchUserData();
+        const watchlistCacheAge = now - watchlistCacheTime.current;
+        
+        // Check if watchlist cache is still valid
+        if (watchlistCacheAge > WATCHLIST_CACHE_DURATION) {
+          // Watchlist is stale, do full refresh
+          console.log('[HomeScreen] 🔄 Full refresh (watchlist cache stale)');
+          fetchUserData();
+        } else {
+          // Watchlist is fresh, only refresh stats (lightweight)
+          console.log('[HomeScreen] ⚡ Quick refresh (stats only)');
+          fetchUserStats();
+        }
+        
         lastFocusRefreshTime.current = now;
       }
     }, [])
@@ -808,11 +837,7 @@ export default function HomeScreen() {
 
       if (isCurrentlyInWatchlist) {
         setWatchlist(prev => prev.filter(w => !(w.id === item.id && w.type === type)));
-        
-        // Also remove from watchlist movies if it's a movie
-        if (type === 'movie') {
-          setWatchlistMovies(prev => prev.filter(w => w.id !== item.id));
-        }
+        watchlistCacheTime.current = Date.now(); // Update cache timestamp
         
         try {
           await storageService.removeFromWatchlist(item.id, type);
@@ -836,11 +861,7 @@ export default function HomeScreen() {
           watched: false
         };
         setWatchlist(prev => [...prev, newItem]);
-        
-        // Also add to watchlist movies if it's a movie
-        if (type === 'movie') {
-          setWatchlistMovies(prev => [...prev, newItem]);
-        }
+        watchlistCacheTime.current = Date.now(); // Update cache timestamp
         
         try {
           await storageService.addToWatchlist(newItem);
@@ -866,9 +887,7 @@ export default function HomeScreen() {
       setWatchlist(prev => prev.map(w =>
         w.id === item.id && w.type === 'movie' ? { ...w, watched: true } : w
       ));
-      
-      // Remove from watchlist movies (since it's now watched)
-      setWatchlistMovies(prev => prev.filter(w => w.id !== item.id));
+      watchlistCacheTime.current = Date.now(); // Update cache timestamp
 
       // Mark as watched in background
       await storageService.markAsWatched({
@@ -881,8 +900,8 @@ export default function HomeScreen() {
         watched: true,
       });
       
-      // Refresh user data silently to ensure consistency
-      await fetchUserData();
+      // Refresh only stats (lightweight) instead of full user data
+      await fetchUserStats();
     } catch (error) {
       console.error('Error marking movie as watched:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to mark movie as watched';
@@ -1214,6 +1233,7 @@ export default function HomeScreen() {
         rightButton={
           <TouchableOpacity
             onPress={() => router.push('/notifications')}
+            style={styles.notificationButton}
           >
             <Ionicons name="notifications" size={24} color={Colors.text} />
             <View style={styles.badgeContainer}>
@@ -1275,7 +1295,7 @@ const styles = StyleSheet.create({
   },
   filtersRow: {
     paddingBottom: 8,
-    paddingLeft: 0,
+    paddingHorizontal: 20,
   },
   appIcon: {
     width: 36,
@@ -1292,7 +1312,7 @@ const styles = StyleSheet.create({
   },
   badgeContainer: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 0,
+    right: 0,
   },
 });

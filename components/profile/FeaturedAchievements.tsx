@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator } from 'react-native';
 import { FeaturedAchievementCard } from './FeaturedAchievementCard';
 import AchievementDetailModal from '../AchievementDetailModal';
-import { Colors } from '../../constants/Colors';
+import { ProfileColors } from '../../constants/ProfileColors';
 import { Achievement, AchievementProgress, UserAchievement } from '../../types';
 import { achievementsService } from '../../services/achievements';
 
@@ -65,7 +65,7 @@ export const FeaturedAchievements: React.FC<FeaturedAchievementsProps> = ({ user
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={ProfileColors.primary} />
         </View>
       </View>
     );
@@ -91,7 +91,7 @@ export const FeaturedAchievements: React.FC<FeaturedAchievementsProps> = ({ user
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="star" size={20} color={Colors.primary} />
+          <Ionicons name="star" size={20} color={ProfileColors.primary} />
           <Text style={styles.headerTitle}>Featured Achievements</Text>
         </View>
         <View style={styles.emptyContainer}>
@@ -106,7 +106,7 @@ export const FeaturedAchievements: React.FC<FeaturedAchievementsProps> = ({ user
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="star" size={20} color={Colors.primary} />
+        <Ionicons name="star" size={20} color={ProfileColors.primary} />
         <Text style={styles.headerTitle}>Featured Achievements</Text>
       </View>
 
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    color: ProfileColors.text,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -174,16 +174,16 @@ const styles = StyleSheet.create({
   emptyContainer: {
     paddingHorizontal: 20,
     paddingVertical: 32,
-    backgroundColor: Colors.card,
+    backgroundColor: '#0A0A0A',
     marginHorizontal: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255, 102, 0, 0.3)',
     alignItems: 'center',
   },
   emptyText: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: ProfileColors.textSecondary,
     textAlign: 'center',
   },
 });

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { Colors } from '../constants/Colors';
+import { ProfileColors } from '../constants/ProfileColors';
 import { AchievementStats, TIER_COLORS } from '../types';
 
 interface AchievementStatsCardProps {
@@ -25,7 +25,7 @@ export const AchievementStatsCard: React.FC<AchievementStatsCardProps> = ({ stat
         <Svg width={radius * 2} height={radius * 2}>
           {/* Background circle */}
           <Circle
-            stroke={Colors.surface}
+            stroke="#1A1A1A"
             fill="transparent"
             strokeWidth={strokeWidth}
             r={normalizedRadius}
@@ -34,7 +34,7 @@ export const AchievementStatsCard: React.FC<AchievementStatsCardProps> = ({ stat
           />
           {/* Progress circle */}
           <Circle
-            stroke={Colors.primary}
+            stroke={ProfileColors.primary}
             fill="transparent"
             strokeWidth={strokeWidth}
             strokeDasharray={`${circumference} ${circumference}`}
@@ -99,7 +99,7 @@ export const AchievementStatsCard: React.FC<AchievementStatsCardProps> = ({ stat
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="trophy" size={24} color={Colors.primary} />
+        <Ionicons name="trophy" size={24} color={ProfileColors.primary} />
         <Text style={styles.headerTitle}>Achievement Progress</Text>
       </View>
 
@@ -125,7 +125,7 @@ export const AchievementStatsCard: React.FC<AchievementStatsCardProps> = ({ stat
           {/* Total Points */}
           <View style={styles.statItem}>
             <View style={styles.pointsRow}>
-              <Ionicons name="star" size={16} color={Colors.primary} />
+              <Ionicons name="star" size={16} color={ProfileColors.primary} />
               <Text style={[styles.statValue, styles.pointsValue]}>{total_points}</Text>
             </View>
             <Text style={styles.statLabel}>Points</Text>
@@ -150,12 +150,12 @@ export const AchievementStatsCard: React.FC<AchievementStatsCardProps> = ({ stat
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.card,
+    backgroundColor: '#0A0A0A',
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255, 102, 0, 0.3)',
   },
   header: {
     flexDirection: 'row',
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    color: ProfileColors.text,
     marginLeft: 8,
   },
   mainStatsRow: {
@@ -189,12 +189,12 @@ const styles = StyleSheet.create({
   percentageText: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.text,
+    color: ProfileColors.text,
   },
   percentageLabel: {
     fontSize: 10,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: ProfileColors.textSecondary,
     marginTop: 2,
   },
   statsSummary: {
@@ -208,13 +208,13 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.text,
+    color: ProfileColors.text,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: ProfileColors.textSecondary,
   },
   pointsRow: {
     flexDirection: 'row',
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: 'rgba(255, 102, 0, 0.2)',
     marginBottom: 16,
   },
   tierBreakdown: {
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   tierBreakdownTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: ProfileColors.textSecondary,
     marginBottom: 4,
   },
   tierRow: {
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   tierLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.text,
+    color: ProfileColors.text,
   },
   tierProgressContainer: {
     flexDirection: 'row',
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   tierProgressBar: {
     flex: 1,
     height: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: '#1A1A1A',
     borderRadius: 3,
     overflow: 'hidden',
     marginRight: 12,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   tierCount: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: ProfileColors.textSecondary,
     minWidth: 40,
     textAlign: 'right',
   },

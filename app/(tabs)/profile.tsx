@@ -15,8 +15,8 @@ import {
 import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomTabHeader } from '../../components/CustomTabHeader';
-import { CompactProfileHeader } from '../../components/profile/CompactProfileHeader';
-import { QuickActionsGrid, QuickAction } from '../../components/profile/QuickActionsGrid';
+import { ProfileHeroCard } from '../../components/profile/ProfileHeroCard';
+import { QuickActionsMenu, QuickAction } from '../../components/profile/QuickActionsMenu';
 import { FeaturedAchievements } from '../../components/profile/FeaturedAchievements';
 import { AchievementStatsCard } from '../../components/AchievementStatsCard';
 import { Colors } from '../../constants/Colors';
@@ -217,7 +217,7 @@ export default function ProfileScreen() {
     {
       id: 'subscriptions',
       icon: 'tv',
-      label: 'Subscriptions',
+      label: 'Streaming Services',
       route: '/(onboarding)/services'
     },
     {
@@ -233,10 +233,26 @@ export default function ProfileScreen() {
       route: '/achievements'
     },
     {
+      id: 'edit-profile',
+      icon: 'person',
+      label: 'Edit Profile',
+      route: '/edit-profile'
+    },
+    {
       id: 'settings',
       icon: 'settings',
       label: 'Settings',
       route: '/settings'
+    },
+    {
+      id: 'sign-out',
+      icon: 'log-out',
+      label: 'Sign Out',
+      destructive: true,
+      onPress: async () => {
+        // TODO: Implement sign out
+        console.log('Sign out pressed');
+      }
     }
   ];
 
@@ -299,10 +315,10 @@ export default function ProfileScreen() {
           { paddingTop: HEADER_HEIGHT + insets.top + 20 }
         ]}>
 
-        {/* Compact Profile Header with Stats */}
+        {/* Profile Hero Card with Stats */}
         {!loading && !error && userStats && (
           <>
-            <CompactProfileHeader
+            <ProfileHeroCard
               userName={user.name}
               userEmail={user.email}
               stats={userStats}
@@ -310,8 +326,8 @@ export default function ProfileScreen() {
               onEditPress={() => router.push('/edit-profile' as any)}
             />
             
-            {/* Quick Actions Grid - Right below profile header */}
-            <QuickActionsGrid 
+            {/* Quick Actions Menu - Right below profile header */}
+            <QuickActionsMenu 
               actions={quickActions}
               onActionPress={handleQuickActionPress}
             />
@@ -357,11 +373,6 @@ export default function ProfileScreen() {
         headerAnimatedStyle={headerAnimatedStyle}
         height={HEADER_HEIGHT + insets.top}
         paddingTop={insets.top}
-        rightButton={
-          <TouchableOpacity onPress={() => router.push('/settings')}>
-            <SymbolView name="gearshape" size={24} tintColor={iconColor} />
-          </TouchableOpacity>
-        }
       />
     </View>
   );

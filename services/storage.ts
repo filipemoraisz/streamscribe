@@ -13,6 +13,8 @@ type WatchlistAction =
 
 class StorageService {
   private readonly QUEUE_KEY = 'streamscribe_watchlist_queue';
+  private lastSyncTime = 0;
+  private readonly SYNC_DEBOUNCE = 30000; // 30 seconds
 
   constructor() {
     // Attempt to sync on startup
@@ -139,8 +141,12 @@ class StorageService {
       const localData = await AsyncStorage.getItem(key);
       const localWatchlist: WatchlistItem[] = localData ? JSON.parse(localData) : [];
 
-      // Trigger background sync if user is logged in
-      this.syncWatchlist().catch(err => console.error('Background sync failed:', err));
+      // Debounced background sync - only trigger if enough time has passed
+      const now = Date.now();
+      if (now - this.lastSyncTime > this.SYNC_DEBOUNCE) {
+        this.lastSyncTime = now;
+        this.syncWatchlist().catch(err => console.error('Background sync failed:', err));
+      }
 
       return localWatchlist;
     } catch (error) {
