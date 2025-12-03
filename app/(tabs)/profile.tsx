@@ -25,7 +25,7 @@ import { userActivityService } from '../../services/userActivity';
 import { achievementsService } from '../../services/achievements';
 import { UserStats, AchievementStats } from '../../types';
 
-const HEADER_HEIGHT = 60;
+const HEADER_HEIGHT = 70; // Smaller header without filters (60 + 10px adjustment)
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export default function ProfileScreen() {
@@ -372,7 +372,7 @@ export default function ProfileScreen() {
         title="My Profile"
         headerAnimatedStyle={headerAnimatedStyle}
         height={HEADER_HEIGHT + insets.top}
-        paddingTop={insets.top}
+        paddingTop={insets.top + 10}
       />
     </View>
   );

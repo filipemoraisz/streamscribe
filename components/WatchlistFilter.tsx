@@ -49,14 +49,14 @@ export const WatchlistFilter = ({ activeFilter, onFilterChange }: WatchlistFilte
 
 const styles = StyleSheet.create({
     container: {
-        paddingTop: 8,
-        paddingBottom: 12,
+        paddingTop: 4,
+        paddingBottom: 8,
         backgroundColor: 'transparent',
     },
     scrollContent: {
-        paddingLeft: 16,
-        paddingRight: 16,
-        gap: 8,
+        paddingLeft: 0,
+        paddingRight: 0,
+        gap: 4,
     },
     chip: {
         paddingHorizontal: 15,

@@ -29,7 +29,7 @@ const numColumns = 2;
 const GAP = 16;
 const PADDING = 16;
 const itemWidth = (width - (PADDING * 2) - (GAP * (numColumns - 1))) / numColumns;
-const HEADER_HEIGHT = 110; // Header + Filter height
+const HEADER_HEIGHT = 120; // Header + Filter height (matches home screen)
 
 export default function WatchlistScreen() {
   const { user } = useAuth();
@@ -423,12 +423,17 @@ export default function WatchlistScreen() {
         height={HEADER_HEIGHT + insets.top}
         paddingTop={insets.top}
         rightButton={
-          <TouchableOpacity onPress={() => router.push('/history')}>
+          <TouchableOpacity 
+            onPress={() => router.push('/history')}
+            style={styles.headerButton}
+          >
             <Ionicons name="list-outline" size={24} color={Colors.text} />
           </TouchableOpacity>
         }
       >
-        <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
+        <View style={styles.filtersRow}>
+          <WatchlistFilter activeFilter={filter} onFilterChange={setFilter} />
+        </View>
       </CustomTabHeader>
     </View>
   );
@@ -472,6 +477,14 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   archiveButton: {
+    padding: 8,
+  },
+  filtersRow: {
+    paddingBottom: 8,
+    paddingHorizontal: 20,
+  },
+  headerButton: {
+    position: 'relative',
     padding: 8,
   },
   listContainer: {
