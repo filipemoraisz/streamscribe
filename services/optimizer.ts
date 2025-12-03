@@ -172,6 +172,8 @@ class OptimizerService {
             totalSavings += savings;
             totalHours += totalClusterHours;
 
+            // Move to next month
+            currentMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 1);
         }
 
         if (schedule.length === 0) return this.getEmptyPlan();
