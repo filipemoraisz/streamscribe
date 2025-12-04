@@ -73,7 +73,9 @@ export default function EpisodeDetailsScreen() {
           ep => ep.season_number === parseInt(seasonNumber as string) &&
             ep.episode_number === parseInt(episodeNumber as string)
         );
-        setUserRating(episodeProgress?.rating || null);
+        // Convert 1-10 rating to 1-5 scale (divide by 2)
+        const storedRating = episodeProgress?.rating || null;
+        setUserRating(storedRating ? Math.round(storedRating / 2) : null);
       }
     } catch (error) {
       console.error('Error checking watched status:', error);
@@ -108,7 +110,7 @@ export default function EpisodeDetailsScreen() {
   const handleRating = (rating: number) => {
     Alert.alert(
       'Rate Episode',
-      `Rate this episode ${rating}/10?`,
+      `Rate this episode ${rating}/5?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -116,11 +118,12 @@ export default function EpisodeDetailsScreen() {
           onPress: async () => {
             try {
               setUserRating(rating);
+              // Convert 1-5 rating to 1-10 scale for storage (multiply by 2)
               await progressService.markEpisodeWatched(
                 parseInt(showId as string),
                 parseInt(seasonNumber as string),
                 parseInt(episodeNumber as string),
-                rating
+                rating * 2
               );
               setIsWatched(true);
             } catch (error) {
@@ -261,34 +264,34 @@ export default function EpisodeDetailsScreen() {
               <View style={styles.userRatingContainer}>
                 <Text style={styles.userRatingText}>You rated this episode:</Text>
                 <View style={styles.userRatingStars}>
-                  {[...Array(10)].map((_, index) => (
+                  {[...Array(5)].map((_, index) => (
                     <TouchableOpacity
                       key={index}
                       onPress={() => handleRating(index + 1)}
                     >
                       <Ionicons
                         name={index < userRating ? "star" : "star-outline"}
-                        size={24}
+                        size={32}
                         color={index < userRating ? Colors.primary : Colors.textMuted}
                         style={styles.ratingStar}
                       />
                     </TouchableOpacity>
                   ))}
                 </View>
-                <Text style={styles.userRatingValue}>{userRating}/10</Text>
+                <Text style={styles.userRatingValue}>{userRating}/5</Text>
               </View>
             ) : (
               <View style={styles.ratingStars}>
                 <Text style={styles.ratingPrompt}>Rate this episode:</Text>
                 <View style={styles.starsContainer}>
-                  {[...Array(10)].map((_, index) => (
+                  {[...Array(5)].map((_, index) => (
                     <TouchableOpacity
                       key={index}
                       onPress={() => handleRating(index + 1)}
                     >
                       <Ionicons
                         name="star-outline"
-                        size={24}
+                        size={32}
                         color={Colors.textMuted}
                         style={styles.ratingStar}
                       />
@@ -490,6 +493,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   ratingStar: {
-    marginHorizontal: 2,
+    marginHorizontal: 4,
   },
 });

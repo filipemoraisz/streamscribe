@@ -147,8 +147,19 @@ class OptimizerService {
 
             // Mock cost - in real app, fetch from DB
             const cost = 14.99;
-            const value = uniqueItems.length * 3.99; // Rental comparison
-            const savings = Math.max(0, value - cost);
+            
+            // Better savings calculation:
+            // Compare to buying/renting each item individually
+            // Movies: $5.99 rental, TV Shows: $2.99/episode × 10 episodes = $29.90
+            const rentalValue = uniqueItems.reduce((sum, item) => {
+                return sum + (item.type === 'movie' ? 5.99 : 29.90);
+            }, 0);
+            
+            // Savings = what you would have paid - subscription cost
+            const monthlySavings = Math.max(0, rentalValue - cost);
+            
+            // Calculate value per hour (entertainment value metric)
+            const valuePerHour = totalClusterHours > 0 ? rentalValue / totalClusterHours : 0;
 
             schedule.push({
                 month: monthName,
@@ -162,14 +173,14 @@ class OptimizerService {
                 },
                 previousProvider: schedule.length > 0 ? schedule[schedule.length - 1].provider : undefined,
                 contentToWatch: uniqueItems,
-                savings: savings,
-                reasoning: `Watch ${uniqueItems.length} items exclusively on ${cluster.provider.name}`
+                savings: monthlySavings,
+                reasoning: `Watch ${uniqueItems.length} items exclusively on ${cluster.provider.name}. Save vs. renting individually.`
             });
 
             // Mark items as scheduled
             uniqueItems.forEach((i: WatchlistItem) => scheduledItemIds.add(`${i.type}-${i.id}`));
 
-            totalSavings += savings;
+            totalSavings += monthlySavings;
             totalHours += totalClusterHours;
 
             // Move to next month
@@ -179,6 +190,9 @@ class OptimizerService {
         if (schedule.length === 0) return this.getEmptyPlan();
 
         const [currentMonth, ...upcomingMonths] = schedule;
+        
+        // Calculate efficiency as savings per hour of content
+        // This shows how much you save per hour of entertainment
         const averageEfficiency = totalHours > 0 ? totalSavings / totalHours : 0;
 
         return {

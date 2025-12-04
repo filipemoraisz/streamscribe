@@ -22,6 +22,7 @@ const { width } = Dimensions.get('window');
 export default function SeasonDetailsScreen() {
   const { showId, seasonNumber } = useLocalSearchParams<{ showId: string; seasonNumber: string }>();
   const [season, setSeason] = useState<Season | null>(null);
+  const [showPosterPath, setShowPosterPath] = useState<string | null>(null);
   const [episodeProgress, setEpisodeProgress] = useState<EpisodeProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,11 +38,18 @@ export default function SeasonDetailsScreen() {
     try {
       setLoading(true);
       setError(null);
-      const seasonData = await tmdbService.getSeasonDetails(
-        parseInt(showId as string),
-        parseInt(seasonNumber as string)
-      );
+      
+      // Load both season and show details
+      const [seasonData, showData] = await Promise.all([
+        tmdbService.getSeasonDetails(
+          parseInt(showId as string),
+          parseInt(seasonNumber as string)
+        ),
+        tmdbService.getTVShowDetails(parseInt(showId as string))
+      ]);
+      
       setSeason(seasonData);
+      setShowPosterPath(showData.poster_path || null);
     } catch (error) {
       console.error('Error loading season details:', error);
       setError('Failed to load season details. Please check your internet connection and try again.');
@@ -266,10 +274,16 @@ export default function SeasonDetailsScreen() {
               onPress={() => handleEpisodePress(episode)}
             >
               <View style={styles.episodeImageContainer}>
-                {episode.still_path ? (
+                {episode.still_path || showPosterPath ? (
                   <Image
-                    source={{ uri: tmdbService.getImageURL(episode.still_path, 'w300') || '' }}
+                    source={{ 
+                      uri: tmdbService.getImageURL(
+                        episode.still_path || showPosterPath!, 
+                        'w300'
+                      ) || '' 
+                    }}
                     style={styles.episodeImage}
+                    resizeMode="cover"
                   />
                 ) : (
                   <View style={styles.placeholderEpisodeImage}>
@@ -456,13 +470,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   episodeImage: {
-    width: 120,
-    height: 68,
+    width: 100,
+    height: 140,
     backgroundColor: Colors.card,
   },
   placeholderEpisodeImage: {
-    width: 120,
-    height: 68,
+    width: 100,
+    height: 140,
     backgroundColor: Colors.card,
     justifyContent: 'center',
     alignItems: 'center',

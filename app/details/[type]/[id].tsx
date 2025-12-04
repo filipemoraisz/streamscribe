@@ -247,14 +247,6 @@ export default function DetailsScreen() {
                 </Text>
               </View>
 
-              {/* Temporary Debug Row */}
-              <View style={{ padding: 8, backgroundColor: '#333', marginBottom: 12, borderRadius: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>DEBUG STATE:</Text>
-                <Text style={{ color: '#ccc', fontSize: 10 }}>In Watchlist: {isInWatchlist ? 'TRUE' : 'FALSE'}</Text>
-                <Text style={{ color: '#ccc', fontSize: 10 }}>Watched: {movieWatched ? 'TRUE' : 'FALSE'}</Text>
-                <Text style={{ color: '#ccc', fontSize: 10 }}>Rewatch Count: {rewatchCount}</Text>
-              </View>
-
               <View style={styles.buttonContainer}>
                 {type === 'movie' && (
                   <>
