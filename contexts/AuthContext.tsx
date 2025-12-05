@@ -73,9 +73,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    console.log('[AuthContext] Logging out user');
     await authService.logout();
     setUser(null);
     setPreferences(null);
+    console.log('[AuthContext] User logged out, state cleared');
   };
 
   const updateUser = async (userData: Partial<User>) => {

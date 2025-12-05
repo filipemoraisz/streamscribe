@@ -720,66 +720,59 @@ export default function HomeScreen() {
     setSurpriseMeLoading(true);
 
     try {
-      // Build taste profile
-      const profile = await tasteProfileService.buildTasteProfile(user.id);
-      
-      // Get subscribed services
-      const subscribedServices = preferences?.subscribed_services || [];
-      
+      // Shuffle helper function
+      const shuffleArray = <T,>(array: T[]): T[] => {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      };
+
       // Get watchlist IDs to exclude
       const excludeIds = new Set(
         watchlist.map(item => `${item.type}-${item.id}`)
       );
 
-      // Try to get taste-based recommendations
-      let recommendations = await tasteProfileService.generateTasteRecommendations(
-        profile,
-        subscribedServices,
-        excludeIds,
-        10
-      );
+      console.log('[Surprise Me] Fetching fresh trending content...');
+      
+      // Always fetch fresh trending content for true randomness
+      const [trendingMovies, trendingTV] = await Promise.all([
+        tmdbService.getTrendingMovies(),
+        tmdbService.getTrendingTVShows(),
+      ]);
 
-      // If no recommendations, fall back to trending content
-      if (recommendations.length === 0) {
-        console.log('No taste recommendations, falling back to trending content');
-        
-        const [trendingMovies, trendingTV] = await Promise.all([
-          tmdbService.getTrendingMovies(),
-          tmdbService.getTrendingTVShows(),
-        ]);
+      console.log('[Surprise Me] Got', trendingMovies.length, 'movies and', trendingTV.length, 'TV shows');
 
-        // Combine and filter out watchlist items
-        const trendingContent = [
-          ...trendingMovies.slice(0, 5).map(m => ({ ...m, type: 'movie' as const })),
-          ...trendingTV.slice(0, 5).map(t => ({ ...t, type: 'tv' as const })),
-        ].filter(item => !excludeIds.has(`${item.type}-${item.id}`));
+      // Combine all trending content
+      const allContent = [
+        ...trendingMovies.map(m => ({ ...m, type: 'movie' as const })),
+        ...trendingTV.map(t => ({ ...t, type: 'tv' as const })),
+      ].filter(item => !excludeIds.has(`${item.type}-${item.id}`));
 
-        if (trendingContent.length === 0) {
-          Alert.alert('No Content', 'No content available for surprise selection');
-          return;
-        }
+      console.log('[Surprise Me] Total available content after filtering:', allContent.length);
 
-        // Select random item from trending
-        const randomIndex = Math.floor(Math.random() * trendingContent.length);
-        const selectedItem = trendingContent[randomIndex];
-        
-        // Navigate to detail screen
-        router.push(`/details/${selectedItem.type}/${selectedItem.id}`);
-      } else {
-        // Select random item from recommendations
-        const randomIndex = Math.floor(Math.random() * recommendations.length);
-        const selectedItem = recommendations[randomIndex];
-        
-        // Navigate to detail screen
-        router.push(`/details/${selectedItem.type}/${selectedItem.id}`);
+      if (allContent.length === 0) {
+        Alert.alert('No Content', 'No content available for surprise selection');
+        return;
       }
+
+      // Shuffle the entire array and pick the first item
+      const shuffled = shuffleArray(allContent);
+      const selectedItem = shuffled[0];
+      
+      console.log('[Surprise Me] Selected:', selectedItem.type, selectedItem.id, 'title' in selectedItem ? selectedItem.title : selectedItem.name);
+      
+      // Navigate to detail screen
+      router.push(`/details/${selectedItem.type}/${selectedItem.id}`);
     } catch (error) {
       console.error('Error in Surprise Me:', error);
       Alert.alert('Error', 'Failed to find a surprise recommendation. Please try again.');
     } finally {
       setSurpriseMeLoading(false);
     }
-  }, [user, preferences, watchlist]);
+  }, [user, watchlist]);
 
   const handleItemPress = (item: Movie | TVShow, type: 'movie' | 'tv') => {
     router.push(`/details/${type}/${item.id}`);
@@ -1020,7 +1013,7 @@ export default function HomeScreen() {
               totalSavings: userStats.totalSavings,
             }}
             loading={sectionLoadingStates['stats']}
-            onPress={() => router.push('/(tabs)/profile')}
+            onPress={() => router.push('/recommendations')}
             onShowRecommendations={(genreIds, mood) => {
               setContextualGenres(genreIds);
               setContextualMood(mood);

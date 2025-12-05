@@ -86,6 +86,12 @@ export class RealTimeManager {
   }
 
   private handleNetworkRecovery(): void {
+    // Don't auto-reconnect if we've hit max attempts (e.g., after logout)
+    if (this.connectionState.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+      console.log('Not auto-reconnecting - max attempts reached (likely logged out)');
+      return;
+    }
+    
     // Reset reconnection attempts when network recovers
     this.connectionState.reconnectAttempts = 0;
     
@@ -109,6 +115,13 @@ export class RealTimeManager {
   // Connection Management
   async connect(): Promise<void> {
     if (this.connectionState.isConnected || this.connectionState.isConnecting) {
+      return;
+    }
+    
+    // Check if user is authenticated before connecting
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.log('No active session, skipping real-time connection');
       return;
     }
 
@@ -162,6 +175,10 @@ export class RealTimeManager {
     // Update connection state
     this.connectionState.isConnected = false;
     this.connectionState.isConnecting = false;
+    
+    // Reset reconnection attempts to prevent auto-reconnect after logout
+    this.connectionState.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;
+    
     this.notifyConnectionChange(false);
   }
 
@@ -191,6 +208,12 @@ export class RealTimeManager {
 
     if (this.connectionState.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
       console.log('Max reconnection attempts reached');
+      return;
+    }
+    
+    // Don't reconnect if we're not connected (e.g., after logout)
+    if (!this.connectionState.isConnected && !this.connectionState.isConnecting) {
+      console.log('Not attempting reconnect - service was explicitly disconnected');
       return;
     }
 

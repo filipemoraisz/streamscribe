@@ -7,10 +7,13 @@ import { RecommendationCard } from '../components/RecommendationCard';
 import { Colors } from '../constants/Colors';
 import { useAuth } from '../contexts/AuthContext';
 import { MonthlyRecommendation, ProviderRecommendation, recommendationService, WatchlistItem } from '../services';
+import { optimizerService } from '../services/optimizer';
+import { storageService } from '../services/storage';
 
 export default function RecommendationsScreen() {
     const { user } = useAuth();
     const [recommendations, setRecommendations] = useState<MonthlyRecommendation | null>(null);
+    const [totalSavings, setTotalSavings] = useState(0);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState<ProviderRecommendation | null>(null);
@@ -18,8 +21,16 @@ export default function RecommendationsScreen() {
 
     const loadRecommendations = useCallback(async (force = false) => {
         try {
-            const monthlyRecs = await recommendationService.generateMonthlyRecommendations(force);
+            const [monthlyRecs, watchlist] = await Promise.all([
+                recommendationService.generateMonthlyRecommendations(force),
+                storageService.getWatchlist()
+            ]);
+            
+            // Get optimizer savings (same as home screen)
+            const optimizationPlan = await optimizerService.generateOptimizationPlan(watchlist);
+            
             setRecommendations(monthlyRecs);
+            setTotalSavings(optimizationPlan.totalAnnualSavings);
         } catch (error) {
             console.error('Error loading recommendations:', error);
         } finally {
@@ -101,8 +112,12 @@ export default function RecommendationsScreen() {
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.statItem}>
-                        <Text style={styles.statValue}>${Math.round(recommendations.estimatedMonthlySavings)}</Text>
-                        <Text style={styles.statLabel}>Savings</Text>
+                        <Text style={styles.statValue}>
+                            ${totalSavings >= 1000 
+                                ? `${Math.round(totalSavings / 1000)}k` 
+                                : Math.round(totalSavings)}
+                        </Text>
+                        <Text style={styles.statLabel}>Total Savings</Text>
                     </View>
                 </View>
 

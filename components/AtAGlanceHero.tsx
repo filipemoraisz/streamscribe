@@ -146,7 +146,11 @@ export function AtAGlanceHero({ stats, loading = false, onPress, onShowRecommend
           {/* Stats Row */}
           <View style={styles.statsRow}>
             {/* Streak */}
-            <View style={styles.statCard}>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={onPress}
+              activeOpacity={0.7}
+            >
               <LinearGradient
                 colors={['rgba(128, 128, 128, 0.15)', 'transparent']}
                 start={{ x: 0.5, y: 0 }}
@@ -163,10 +167,14 @@ export function AtAGlanceHero({ stats, loading = false, onPress, onShowRecommend
                   </Text>
                 </View>
               </LinearGradient>
-            </View>
+            </TouchableOpacity>
 
             {/* Episodes */}
-            <View style={styles.statCard}>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={onPress}
+              activeOpacity={0.7}
+            >
               <LinearGradient
                 colors={['rgba(128, 128, 128, 0.15)', 'transparent']}
                 start={{ x: 0.5, y: 0 }}
@@ -183,10 +191,14 @@ export function AtAGlanceHero({ stats, loading = false, onPress, onShowRecommend
                   </Text>
                 </View>
               </LinearGradient>
-            </View>
+            </TouchableOpacity>
 
             {/* Total Savings */}
-            <View style={styles.statCard}>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={onPress}
+              activeOpacity={0.7}
+            >
               <LinearGradient
                 colors={['rgba(128, 128, 128, 0.15)', 'transparent']}
                 start={{ x: 0.5, y: 0 }}
@@ -205,7 +217,7 @@ export function AtAGlanceHero({ stats, loading = false, onPress, onShowRecommend
                   <Text style={styles.statLabel}>SAVED</Text>
                 </View>
               </LinearGradient>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Footer Message & Button */}

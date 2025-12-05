@@ -12,9 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Logo } from '../../components/Logo';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
+import StreamScribeLogo from '../../assets/images/streamscribe.svg';
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
@@ -80,7 +80,7 @@ export default function RegisterScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
-          <Logo width={150} height={80} />
+          <StreamScribeLogo width={220} height={110} />
           <Text style={styles.welcomeText}>Create Account</Text>
           <Text style={styles.subtitleText}>Join StreamScribe to start tracking</Text>
         </View>
@@ -194,6 +194,11 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 48,
+  },
+  roundLogo: {
+    width: 100,
+    height: 100,
+    marginBottom: 3,
   },
   welcomeText: {
     fontSize: 28,

@@ -265,7 +265,10 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
       }));
     } catch (error) {
       console.error('Error loading initial recommendations:', error);
-      const errorMessage = state.isOffline 
+      
+      // Check network state at time of error
+      const netInfo = await NetInfo.fetch();
+      const errorMessage = !netInfo.isConnected
         ? 'No network connection. Please check your internet.'
         : 'Failed to load recommendations. Please try again.';
       
@@ -276,16 +279,20 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
         retryCount: 0,
       }));
     }
-  }, [user, subscribedServices, preloadCardImages, retryWithBackoff, state.isOffline]);
+  }, [user, subscribedServices, preloadCardImages, retryWithBackoff]);
 
   // Fetch next recommendation (Subtask 7.2, 11.2)
   const fetchNextRecommendation = useCallback(async (): Promise<RecommendationItem | null> => {
     if (!user) return null;
 
     try {
+      // Get current state values directly to avoid stale closure
+      const currentDismissedIds = state.dismissedIds;
+      const currentCards = state.cards;
+      
       // Create a set of IDs to exclude (dismissed + currently displayed)
-      const excludeIds = new Set(state.dismissedIds);
-      state.cards.forEach(card => {
+      const excludeIds = new Set(currentDismissedIds);
+      currentCards.forEach(card => {
         excludeIds.add(`${card.type}-${card.id}`);
       });
       
@@ -300,7 +307,7 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
       console.error('Error fetching next recommendation:', error);
       return null;
     }
-  }, [user, subscribedServices, state.dismissedIds]);
+  }, [user, subscribedServices, state.dismissedIds, state.cards]);
 
   // Handle phase transition (Subtask 7.3)
   const handlePhaseTransition = useCallback(() => {
@@ -572,9 +579,12 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
     if (!state.isOffline && shouldRetryOnNetworkRef.current && state.error) {
       console.log('[StartWatchingWidget] Network restored, retrying...');
       shouldRetryOnNetworkRef.current = false;
-      loadInitialRecommendations();
+      // Call directly instead of depending on the callback
+      if (user && subscribedServices.length > 0) {
+        loadInitialRecommendations();
+      }
     }
-  }, [state.isOffline, state.error, loadInitialRecommendations]);
+  }, [state.isOffline, state.error]); // Removed loadInitialRecommendations from deps
 
   // Setup network monitoring (Subtask 11.1)
   useEffect(() => {
@@ -620,7 +630,7 @@ export const StartWatchingWidget: React.FC<StartWatchingWidgetProps> = ({
   // Initialize on mount and when refreshTrigger changes
   useEffect(() => {
     loadInitialRecommendations();
-  }, [loadInitialRecommendations, refreshTrigger]);
+  }, [refreshTrigger]); // Only depend on refreshTrigger, not the function itself
 
   // Cleanup on unmount
   useEffect(() => {

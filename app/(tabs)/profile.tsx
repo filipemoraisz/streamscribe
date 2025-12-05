@@ -29,7 +29,7 @@ const HEADER_HEIGHT = 70; // Smaller header without filters (60 + 10px adjustmen
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export default function ProfileScreen() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   
   // Data loading states
@@ -249,14 +249,33 @@ export default function ProfileScreen() {
       icon: 'log-out',
       label: 'Sign Out',
       destructive: true,
-      onPress: async () => {
-        // TODO: Implement sign out
-        console.log('Sign out pressed');
-      }
+      onPress: handleSignOut
     }
   ];
 
+  const handleSignOut = async () => {
+    try {
+      console.log('[Profile] Signing out...');
+      await logout();
+      console.log('[Profile] Logout successful');
+      // Navigation to login screen is handled by _layout.tsx
+    } catch (error) {
+      console.error('[Profile] Logout error:', error);
+    }
+  };
+
   const handleQuickActionPress = (action: QuickAction) => {
+    // Actions with onPress handler are handled by the component itself
+    if (action.onPress) {
+      return;
+    }
+    
+    // Only navigate if route is defined
+    if (!action.route) {
+      console.warn('[Profile] Action has no route:', action.id);
+      return;
+    }
+    
     console.log('[Profile] Quick action pressed:', action.id, action.route);
     try {
       console.log('[Profile] Attempting navigation to:', action.route);

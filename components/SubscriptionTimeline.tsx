@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { OptimizationPlan, SubscriptionAction } from '../services/optimizer';
 import { tmdbService } from '../services/tmdb';
@@ -13,6 +14,12 @@ interface Props {
 }
 
 export function SubscriptionTimeline({ plan, onRecalculate }: Props) {
+    const router = useRouter();
+
+    const handleItemPress = (itemId: number, itemType: 'movie' | 'tv') => {
+        router.push(`/details/${itemType}/${itemId}`);
+    };
+
     const renderActionCard = (action: SubscriptionAction, isCurrent: boolean) => {
         const isSwitch = action.action === 'SWITCH';
         const isStart = action.action === 'START';
@@ -70,11 +77,19 @@ export function SubscriptionTimeline({ plan, onRecalculate }: Props) {
                         <Text style={styles.contentPreviewTitle}>Watchlist items:</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.posterScroll}>
                             {action.contentToWatch.map(item => (
-                                <Image
-                                    key={item.id}
-                                    source={{ uri: tmdbService.getImageURL(item.poster_path, 'w154') || undefined }}
-                                    style={styles.poster}
-                                />
+                                <TouchableOpacity
+                                    key={`${item.type}-${item.id}`}
+                                    onPress={() => handleItemPress(item.id, item.type)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Image
+                                        source={{ uri: tmdbService.getImageURL(item.poster_path, 'w154') || undefined }}
+                                        style={styles.poster}
+                                    />
+                                    <Text style={styles.posterTitle} numberOfLines={2}>
+                                        {item.title}
+                                    </Text>
+                                </TouchableOpacity>
                             ))}
                         </ScrollView>
                     </View>
@@ -296,10 +311,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
     },
     poster: {
-        width: 60,
-        height: 90,
+        width: 80,
+        height: 120,
         borderRadius: 4,
-        marginRight: 8,
+        marginRight: 12,
         backgroundColor: Colors.card,
+    },
+    posterTitle: {
+        color: Colors.text,
+        fontSize: 11,
+        marginTop: 4,
+        width: 80,
+        textAlign: 'center',
     },
 });

@@ -12,9 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Logo } from '../../components/Logo';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../contexts/AuthContext';
+import StreamScribeLogo from '../../assets/images/streamscribe.svg';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -57,7 +57,7 @@ export default function LoginScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
-          <Logo width={150} height={80} />
+          <StreamScribeLogo width={220} height={110} />
           <Text style={styles.welcomeText}>Welcome Back</Text>
           <Text style={styles.subtitleText}>Sign in to continue tracking your shows</Text>
         </View>

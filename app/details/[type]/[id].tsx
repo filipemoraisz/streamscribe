@@ -18,11 +18,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
 export default function DetailsScreen() {
   const { type, id } = useLocalSearchParams<{ type: string; id: string }>();
+  const insets = useSafeAreaInsets();
   const [item, setItem] = useState<Movie | TVShow | TVShowDetails | null>(null);
   const [streamingOptions, setStreamingOptions] = useState<StreamingOption[]>([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -214,14 +216,36 @@ export default function DetailsScreen() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: title,
+          title: '',
           headerBackTitle: 'Back',
+          headerTransparent: true,
+          headerBlurEffect: undefined,
+          headerStyle: {
+            backgroundColor: 'rgba(0, 0, 0, 0)',
+          },
+          headerTintColor: Colors.text,
+          headerShadowVisible: false,
+          contentStyle: {
+            backgroundColor: Colors.background,
+          },
+          animation: 'fade',
         }}
       />
 
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        indicatorStyle="white"
+        contentContainerStyle={{ backgroundColor: Colors.background }}
+      >
         {backdropUrl && (
-          <Image source={{ uri: backdropUrl }} style={styles.backdrop} />
+          <View style={{ backgroundColor: Colors.background }}>
+            <Image 
+              source={{ uri: backdropUrl }} 
+              style={[styles.backdrop, { height: width * 0.56 + insets.top, backgroundColor: Colors.background }]}
+              fadeDuration={0}
+            />
+          </View>
         )}
 
         <View style={styles.content}>
@@ -526,7 +550,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     width: width,
-    height: width * 0.56,
     backgroundColor: Colors.surface,
   },
   content: {

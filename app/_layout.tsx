@@ -72,6 +72,9 @@ function RootLayoutNav() {
     } else if (!user && !loading) {
       console.log('User not authenticated, disconnecting real-time manager');
       realTimeManager.disconnect();
+      
+      // Also cleanup notification manager to prevent errors
+      notificationManager.cleanup();
     }
   }, [user, loading]);
 
